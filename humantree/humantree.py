@@ -166,13 +166,8 @@ class HumanTree(object):
             "&key={}")
         if not os.path.isdir('parcels'):
             os.mkdir('parcels')
-        if not os.path.isdir('masks'):
-            os.mkdir('masks')
         if purge:
             files = glob(os.path.join('parcels', '*'))
-            for f in files:
-                os.remove(f)
-            files = glob(os.path.join('masks', '*'))
             for f in files:
                 os.remove(f)
         self._train_count = 0
@@ -183,8 +178,8 @@ class HumanTree(object):
             mlon, mlat = poly.centroid.coords[0]
             # print(query_url)
             # Calculate physical size in meters of image.
-            physical_size = cropsize * 156543.03392 * np.cos(
-                mlat * np.pi / 180) / (2 ** zoom)
+            # physical_size = cropsize * 156543.03392 * np.cos(
+            #     mlat * np.pi / 180) / (2 ** zoom)
             min_lon, min_lat, max_lon, max_lat = poly.bounds
             bp = self.get_static_map_bounds(
                 mlat, mlon, zoom, cropsize, cropsize)
@@ -195,71 +190,53 @@ class HumanTree(object):
                 print('Lot {} not fully contained in image, skipping.'.format(
                     pi))
                 continue
-            ipolys = []
-            success_count = 0
-            for canpoly in self._canopy_polygons:
-                cp = canpoly[0]
-                if cp.disjoint(bound_poly):
-                    # print('no overlap')
-                    continue
-                try:
-                    ipolys.append(cp.intersection(bound_poly))
-                except Exception:
+
+            fname = str(pi).zfill(5)
+            fpath = os.path.join('parcels', fname + '-mask.png')
+            if not os.path.exists(fpath):
+                ipolys = []
+                success_count = 0
+                for canpoly in self._canopy_polygons:
+                    cp = canpoly[0]
+                    if cp.disjoint(bound_poly):
+                        # print('no overlap')
+                        continue
                     try:
-                        ipolys.append(cp.buffer(0).intersection(bound_poly))
-                    except Exception as e:
-                        print(e, cp)
-                else:
-                    success_count += 1
-            print(success_count)
-            # print(ipolys)
+                        ipolys.append(cp.intersection(bound_poly))
+                    except Exception:
+                        try:
+                            for geo in cp.buffer(
+                                    0).intersection(bound_poly).geoms:
+                                ipolys.append(geo)
+                        except Exception as e:
+                            print(e, cp)
+                    else:
+                        success_count += 1
+                print(success_count)
+                # print(ipolys)
 
-            fig = plt.figure()
-            ax = fig.gca()
-            plt.axis('off')
-            ax.get_xaxis().set_visible(False)
-            ax.get_yaxis().set_visible(False)
-            patches = [MPPoly(x.exterior.coords) for x in ipolys if hasattr(
-                x, 'exterior')]
-            # lpolys = []
-            # for x in ipolys:
-            #     if not hasattr(x, 'exterior'):
-            #         continue
-            #     lpolys.append([(a, b) for a, b in x.exterior.coords])
-            #     print(encode_coordinates([(
-            #         y, x) for x, y in x.exterior.coords], 5))
-            pc = PatchCollection(
-                patches, alpha=1, facecolors='black', edgecolors=None,
-                antialiased=False)
-            ax.autoscale_view(True, True, True)
-            # for patch in lpolys:
-            #     plt.plot([x[0] for x in patch], [x[1] for x in patch])
-            # ax.relim()
-            ax.add_collection(pc)
-            ax.set_xlim(bp[0][0], bp[1][0])
-            ax.set_ylim(bp[0][1], bp[1][1])
+                fig = plt.figure()
+                ax = fig.gca()
+                plt.axis('off')
+                ax.get_xaxis().set_visible(False)
+                ax.get_yaxis().set_visible(False)
+                patches = [MPPoly(
+                    x.exterior.coords) for x in ipolys if hasattr(
+                        x, 'exterior')]
+                pc = PatchCollection(
+                    patches, alpha=1, facecolors='black', edgecolors=None,
+                    antialiased=False)
+                ax.autoscale_view(True, True, True)
+                plt.gray()
+                ax.add_collection(pc)
+                ax.set_xlim(bp[0][0], bp[1][0])
+                ax.set_ylim(bp[0][1], bp[1][1])
+                fig.subplots_adjust(
+                    bottom=0, left=0, top=cropsize / dpi, right=cropsize / dpi)
+                fig.set_size_inches(1, 1)
+                plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
 
-            fname = str(pi).zfill(5) + '.png'
-            fpath = os.path.join('masks', fname)
-            fig.subplots_adjust(
-                bottom=0, left=0, top=cropsize / dpi, right=cropsize / dpi)
-            fig.set_size_inches(1, 1)
-            plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
-
-            # dlat = max_lat - min_lat
-            # dlon = max_lon - min_lon
-            # aa = np.sin(
-            #     dlat / 2) ** 2 + np.cos(min_lat) * np.cos(max_lat) * np.sin(
-            #         dlon / 2) ** 2
-            # cc = 2.0 * np.arctan2(np.sqrt(aa), np.sqrt(1.0 - aa))
-            # dd = rearth * cc
-            # print(dd, physical_size)
-
-            # if dd > physical_size:
-            #     print('Lot {} too large, skipping.'.format(pi))
-            #     continue
-
-            fpath = os.path.join('parcels', fname)
+            fpath = os.path.join('parcels', fname + '.png')
             crop_image = False if os.path.exists(fpath) else True
             query_url = pattern.format(
                 mlat, mlon, zoom, imgsize, imgsize, self._google_key)
@@ -303,21 +280,31 @@ class HumanTree(object):
 
         return ((lng - d_lng, lat - d_lat), (lng + d_lng, lat + d_lat))
 
-    def generator(self, val):
+    def training_data(self):
         """Return image and mask for training image segmentation."""
-        parcel_paths = glob(os.path.join('parcels', '*.png'))
-        mask_paths = glob(os.path.join('parcels', '*.png'))
-        idx = np.random.randint(self._train_count - 1)
+        parcel_paths = list(sorted(glob(os.path.join('parcels', '*.png'))))
+        mask_paths = list(sorted(glob(os.path.join('parcels', '*-mask.png'))))
 
-        return misc.imread(parcel_paths[idx]), misc.imread(mask_paths[idx])
+        images = []
+        masks = []
+        for i in range(self._train_count):
+            images.append(misc.imread(parcel_paths[i])[:, :, :3])
+            mask = np.rint(
+                misc.imread(mask_paths[i])[:, :, 0] / 255).astype(int)
+            masks.append(mask)
+
+        return np.array(images), np.array(masks)
 
     def train(self):
         """Train DNN for image segmentation."""
         from tf_unet import unet
+        from tf_unet.image_util import SimpleDataProvider
 
-        net = unet.Unet(layers=3, features_root=16)
+        net = unet.Unet(layers=6, features_root=16)
         trainer = unet.Trainer(
             net, optimizer="momentum", opt_kwargs=dict(momentum=0.2))
+        data, label = self.training_data()
+        generator = SimpleDataProvider(data, label, channels=3)
         trainer.train(
-            self.generator, "./unet_trained", training_iters=20, epochs=10,
+            generator, "./unet_trained", training_iters=20, epochs=10,
             display_step=2)

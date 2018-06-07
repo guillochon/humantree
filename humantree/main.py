@@ -44,6 +44,6 @@ def main():
 
     # print(ht.find_poly(args.address))
 
-    ht.get_poly_images(limit=100, purge=True)
+    ht.get_poly_images(limit=50, purge=args.purge)
 
     ht.train()
