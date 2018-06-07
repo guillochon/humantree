@@ -3,15 +3,18 @@ import json
 import os
 import pprint
 
+import matplotlib.pyplot as plt
 import numpy as np
 import requests
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Polygon as MPPoly
 from scipy import misc
 from tqdm import tqdm
 
 import googlemaps
+from pypolyline.util import encode_coordinates
 from shapely.geometry import Point, Polygon
-from shapely.errors import TopologicalError
-from pypolyline.util import encode_coordinates, decode_polyline
+from glob import glob
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -50,52 +53,69 @@ class HumanTree(object):
                                  for x in self._parcel_polygons]
 
         # Load canopy data.
-        self._canopy_fname = self.download_file(self._TREE_CANOPY_URL)
+        # self._canopy_fname = self.download_file(self._TREE_CANOPY_URL)
 
+        self._canopy_fname = 'ENVIRONMENTAL_TreeCanopy2014.json'
         with open(self._canopy_fname, 'r') as f:
-            self._canopies_topo = json.load(f)
+            self._canopies = json.load(f)
 
         self._canopy_polygons = [
-            x.get('geometry', {}).get('coordinates', [])
-            for x in self._canopies_topo.get('features', [])]
+            x.get('geometry', {}).get(
+                'coordinates', []) for x in self._canopies.get(
+                    'features', []) if x.get('geometry', {}) is not None]
 
-        # Convert canopies to polygons.
-        scale = np.array(self._canopies_topo['transform']['scale'])
-        trans = np.array(self._canopies_topo['transform']['translate'])
-        arcs = [[
-            (y + trans).tolist() for y in (
-                np.cumsum(x, axis=0) * scale)] for x in self._canopies_topo[
-                    'arcs']]
+        self._canopy_polygons = list(filter(None, ([
+            [y for y in x if len(y) >= 3] for x in self._canopy_polygons])))
 
-        self._canopies = []
-        for cano in tqdm(self._canopies_topo['objects'][
-                'ENVIRONMENTAL_TreeCanopy2014']['geometries']):
-            arc_ids = cano['arcs'][0]
-            print(cano['arcs'])
+        self._canopy_polygons = [[Polygon(y) for y in x if len(y) >= 3]
+                                 for x in self._canopy_polygons]
 
-            poly = []
-            for aid in arc_ids:
-                lid = aid[0] if isinstance(aid, list) else aid
-                pos = np.sign(lid)
-                lid = np.abs(lid)
-                larcs = arcs[lid - 1]
-                if pos:
-                    poly.extend(larcs)
-                else:
-                    poly.extend(reversed(larcs))
-                print(aid, pos, larcs)
-            poly = np.unique(poly, axis=0)
-            if poly.shape[0] < 3:
-                continue
-            cpoly = Polygon(poly)
-            if not cpoly.is_valid:
-                print(cpoly)
-                print(cpoly.exterior.type)
-                print(cpoly.exterior.is_valid)
-                print(encode_coordinates([(
-                    y, x) for x, y in cpoly.exterior.coords], 5))
-                raise ValueError('invalid poly')
-            self._canopies.append(cpoly)
+        # self._canopy_polygons = [
+        #     x.get('geometry', {}).get('coordinates', [])
+        #     for x in self._canopies_topo.get('features', [])]
+        #
+        # # Convert canopies to polygons.
+        # scale = np.array(self._canopies_topo['transform']['scale'])
+        # trans = np.array(self._canopies_topo['transform']['translate'])
+        # arcs = [[
+        #     (y + trans).tolist() for y in (
+        #         np.cumsum(x, axis=0) * scale)] for x in self._canopies_topo[
+        #             'arcs']]
+        #
+        # self._canopies = []
+        # for ci, cano in enumerate(tqdm(self._canopies_topo['objects'][
+        #         'ENVIRONMENTAL_TreeCanopy2014']['geometries'])):
+        #     arc_ids = cano['arcs'][0]
+        #     # print(cano['arcs'])
+        #
+        #     poly = []
+        #     for ai, aid in enumerate(arc_ids):
+        #         lid = aid[0] if isinstance(aid, list) else aid
+        #         pos = np.sign(lid)
+        #         si = 1 if ai else 0
+        #         if pos:
+        #             larcs = arcs[lid]
+        #             poly.extend(larcs[si:])
+        #         else:
+        #             larcs = arcs[~lid]
+        #             poly.extend(larcs[si:])
+        #         # print(aid, pos, larcs)
+        #     u, ind = np.unique(poly, axis=0, return_index=True)
+        #     poly = u[np.argsort(ind)]
+        #     if poly.shape[0] < 3:
+        #         continue
+        #     # Hack for now.
+        #     cpoly = Polygon(poly)  # .convex_hull
+        #     if not cpoly.is_valid:
+        #         # print(cpoly)
+        #         # print(cpoly.exterior.type)
+        #         # print(cpoly.exterior.is_valid)
+        #         print(encode_coordinates([(
+        #             y, x) for x, y in cpoly.exterior.coords], 5))
+        #         continue
+        #         # raise ValueError('invalid poly')
+        #     else:
+        #         self._canopies.append(cpoly)
 
         with open('google.key', 'r') as f:
             self._google_key = f.readline().strip()
@@ -132,26 +152,35 @@ class HumanTree(object):
 
         return result
 
-    def get_poly_images(self):
+    def get_poly_images(self, limit=None, purge=False):
         """Retrieve images of all polygons on Google Maps."""
         zoom = 20
         imgsize = 640
         croppix = 20
+        dpi = 100.0
         cropsize = imgsize - 2 * croppix
-        rearth = 6371000.0
+        # rearth = 6371000.0
         pattern = (
             "https://maps.googleapis.com/maps/api/staticmap?"
             "center={},{}&zoom={}&maptype=satellite&size={}x{}"
             "&key={}")
         if not os.path.isdir('parcels'):
             os.mkdir('parcels')
-        for pi, polys in enumerate(tqdm(self._parcel_polygons)):
-            if pi > 10:
+        if not os.path.isdir('masks'):
+            os.mkdir('masks')
+        if purge:
+            files = glob(os.path.join('parcels', '*'))
+            for f in files:
+                os.remove(f)
+            files = glob(os.path.join('masks', '*'))
+            for f in files:
+                os.remove(f)
+        self._train_count = 0
+        for pi, polys in enumerate(tqdm(self._parcel_polygons, total=limit)):
+            if limit is not None and pi >= limit:
                 break
             poly = polys[0]
             mlon, mlat = poly.centroid.coords[0]
-            query_url = pattern.format(
-                mlat, mlon, zoom, imgsize, imgsize, self._google_key)
             # print(query_url)
             # Calculate physical size in meters of image.
             physical_size = cropsize * 156543.03392 * np.cos(
@@ -159,41 +188,88 @@ class HumanTree(object):
             min_lon, min_lat, max_lon, max_lat = poly.bounds
             bp = self.get_static_map_bounds(
                 mlat, mlon, zoom, cropsize, cropsize)
+
             bound_poly = Polygon([
                 bp[0], [bp[0][0], bp[1][1]], bp[1], [bp[1][0], bp[0][1]]])
+            if not bound_poly.contains(poly):
+                print('Lot {} not fully contained in image, skipping.'.format(
+                    pi))
+                continue
             ipolys = []
-            for canpoly in self._canopies:
-                if not canpoly.intersects(bound_poly):
+            success_count = 0
+            for canpoly in self._canopy_polygons:
+                cp = canpoly[0]
+                if cp.disjoint(bound_poly):
                     # print('no overlap')
                     continue
                 try:
-                    ipolys.append(canpoly.intersection(bound_poly))
-                except TopologicalError:
-                    pass
-                    # print('fail')
-                    # print(e, canpoly)
+                    ipolys.append(cp.intersection(bound_poly))
+                except Exception:
+                    try:
+                        ipolys.append(cp.buffer(0).intersection(bound_poly))
+                    except Exception as e:
+                        print(e, cp)
                 else:
-                    pass
-                    # print('success')
-            print(ipolys)
-            dlat = max_lat - min_lat
-            dlon = max_lon - min_lon
-            aa = np.sin(
-                dlat / 2) ** 2 + np.cos(min_lat) * np.cos(max_lat) * np.sin(
-                    dlon / 2) ** 2
-            cc = 2.0 * np.arctan2(np.sqrt(aa), np.sqrt(1.0 - aa))
-            dd = rearth * cc
-            if dd > physical_size:
-                # print('Lot {} too large, skipping.'.format(pi))
-                continue
+                    success_count += 1
+            print(success_count)
+            # print(ipolys)
+
+            fig = plt.figure()
+            ax = fig.gca()
+            plt.axis('off')
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            patches = [MPPoly(x.exterior.coords) for x in ipolys if hasattr(
+                x, 'exterior')]
+            # lpolys = []
+            # for x in ipolys:
+            #     if not hasattr(x, 'exterior'):
+            #         continue
+            #     lpolys.append([(a, b) for a, b in x.exterior.coords])
+            #     print(encode_coordinates([(
+            #         y, x) for x, y in x.exterior.coords], 5))
+            pc = PatchCollection(
+                patches, alpha=1, facecolors='black', edgecolors=None,
+                antialiased=False)
+            ax.autoscale_view(True, True, True)
+            # for patch in lpolys:
+            #     plt.plot([x[0] for x in patch], [x[1] for x in patch])
+            # ax.relim()
+            ax.add_collection(pc)
+            ax.set_xlim(bp[0][0], bp[1][0])
+            ax.set_ylim(bp[0][1], bp[1][1])
+
             fname = str(pi).zfill(5) + '.png'
+            fpath = os.path.join('masks', fname)
+            fig.subplots_adjust(
+                bottom=0, left=0, top=cropsize / dpi, right=cropsize / dpi)
+            fig.set_size_inches(1, 1)
+            plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
+
+            # dlat = max_lat - min_lat
+            # dlon = max_lon - min_lon
+            # aa = np.sin(
+            #     dlat / 2) ** 2 + np.cos(min_lat) * np.cos(max_lat) * np.sin(
+            #         dlon / 2) ** 2
+            # cc = 2.0 * np.arctan2(np.sqrt(aa), np.sqrt(1.0 - aa))
+            # dd = rearth * cc
+            # print(dd, physical_size)
+
+            # if dd > physical_size:
+            #     print('Lot {} too large, skipping.'.format(pi))
+            #     continue
+
             fpath = os.path.join('parcels', fname)
-            crop_image = False if os.path.exists(fname) else True
+            crop_image = False if os.path.exists(fpath) else True
+            query_url = pattern.format(
+                mlat, mlon, zoom, imgsize, imgsize, self._google_key)
             self.download_file(query_url, fname=fpath)
             if crop_image:
                 pic = misc.imread(fpath)
-                pic = pic[croppix:-croppix, croppix:-croppix]
-                misc.imsave(fpath, pic)
+                npic = pic[croppix:-croppix, croppix:-croppix]
+                misc.imsave(fpath, npic)
+
+            self._train_count += 1
 
     def get_coordinates(self, address):
         """Get lat/lon from address using Geocode API."""
@@ -226,3 +302,22 @@ class HumanTree(object):
         d_lng = res_lng * sx / 2
 
         return ((lng - d_lng, lat - d_lat), (lng + d_lng, lat + d_lat))
+
+    def generator(self, val):
+        """Return image and mask for training image segmentation."""
+        parcel_paths = glob(os.path.join('parcels', '*.png'))
+        mask_paths = glob(os.path.join('parcels', '*.png'))
+        idx = np.random.randint(self._train_count - 1)
+
+        return misc.imread(parcel_paths[idx]), misc.imread(mask_paths[idx])
+
+    def train(self):
+        """Train DNN for image segmentation."""
+        from tf_unet import unet
+
+        net = unet.Unet(layers=3, features_root=16)
+        trainer = unet.Trainer(
+            net, optimizer="momentum", opt_kwargs=dict(momentum=0.2))
+        trainer.train(
+            self.generator, "./unet_trained", training_iters=20, epochs=10,
+            display_step=2)

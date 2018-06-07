@@ -32,8 +32,18 @@ def main():
         nargs='?',
         help='Address to perform operations on.')
 
+    parser.add_argument(
+        '--purge-cache',
+        '-p',
+        dest='purge',
+        default=False,
+        action='store_true',
+        help='Purge cached files.')
+
     args = parser.parse_args()
 
-    print(ht.find_poly(args.address))
+    # print(ht.find_poly(args.address))
 
-    ht.get_poly_images()
+    ht.get_poly_images(limit=100, purge=True)
+
+    ht.train()
