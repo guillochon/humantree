@@ -12,7 +12,7 @@ from scipy import misc
 from tqdm import tqdm
 
 import googlemaps
-from pypolyline.util import encode_coordinates
+# from pypolyline.util import encode_coordinates
 from shapely.geometry import Point, Polygon
 from glob import glob
 
@@ -33,6 +33,8 @@ class HumanTree(object):
         "https://raw.githubusercontent.com/cambridgegis/cambridgegis_data/"
         "master/Environmental/Tree_Canopy_2014/"
         "ENVIRONMENTAL_TreeCanopy2014.topojson")
+
+    _LAT_OFFSET = 2.e-5  # The LIDAR data is slightly offset from the images.
 
     def __init__(self):
         """Initialize, loading data."""
@@ -59,16 +61,24 @@ class HumanTree(object):
         with open(self._canopy_fname, 'r') as f:
             self._canopies = json.load(f)
 
-        self._canopy_polygons = [
+        raw_canpols = [
             x.get('geometry', {}).get(
                 'coordinates', []) for x in self._canopies.get(
                     'features', []) if x.get('geometry', {}) is not None]
 
-        self._canopy_polygons = list(filter(None, ([
-            [y for y in x if len(y) >= 3] for x in self._canopy_polygons])))
+        raw_canpols = list(filter(None, ([
+            [y for y in x if len(y) >= 3] for x in raw_canpols])))
 
-        self._canopy_polygons = [[Polygon(y) for y in x if len(y) >= 3]
-                                 for x in self._canopy_polygons]
+        raw_canpols = [[Polygon([(
+            a, b + self._LAT_OFFSET) for a, b in y]) for y in x if len(
+                y) >= 3] for x in raw_canpols]
+
+        self._canopy_polygons = []
+        for canpoly in tqdm(raw_canpols):
+            cps = [x.buffer(0) for x in canpoly]
+            cps = self._canopy_polygons.extend([a for b in [
+                list(x.geoms) if 'multi' in str(type(
+                    x)).lower() else [x] for x in cps] for a in b])
 
         # self._canopy_polygons = [
         #     x.get('geometry', {}).get('coordinates', [])
@@ -158,6 +168,7 @@ class HumanTree(object):
         imgsize = 640
         croppix = 20
         dpi = 100.0
+        sbuff = 2.e-6  # buffer size for smoothing tree regions
         cropsize = imgsize - 2 * croppix
         # rearth = 6371000.0
         pattern = (
@@ -171,6 +182,7 @@ class HumanTree(object):
             for f in files:
                 os.remove(f)
         self._train_count = 0
+        lots_skipped = 0
         for pi, polys in enumerate(tqdm(self._parcel_polygons, total=limit)):
             if limit is not None and pi >= limit:
                 break
@@ -187,8 +199,7 @@ class HumanTree(object):
             bound_poly = Polygon([
                 bp[0], [bp[0][0], bp[1][1]], bp[1], [bp[1][0], bp[0][1]]])
             if not bound_poly.contains(poly):
-                print('Lot {} not fully contained in image, skipping.'.format(
-                    pi))
+                lots_skipped += 1
                 continue
 
             fname = str(pi).zfill(5)
@@ -196,23 +207,25 @@ class HumanTree(object):
             if not os.path.exists(fpath):
                 ipolys = []
                 success_count = 0
-                for canpoly in self._canopy_polygons:
-                    cp = canpoly[0]
+                for cp in self._canopy_polygons:
+                    # print(type(cp))
                     if cp.disjoint(bound_poly):
                         # print('no overlap')
                         continue
                     try:
-                        ipolys.append(cp.intersection(bound_poly))
-                    except Exception:
-                        try:
-                            for geo in cp.buffer(
-                                    0).intersection(bound_poly).geoms:
-                                ipolys.append(geo)
-                        except Exception as e:
-                            print(e, cp)
+                        ipolys.append(cp.intersection(bound_poly).buffer(
+                            sbuff).buffer(sbuff).buffer(sbuff).buffer(sbuff))
+                    except Exception as ee:
+                        print(ee)
+                        # try:
+                        #     for geo in cp.buffer(
+                        #             sbuff).intersection(bound_poly).geoms:
+                        #         ipolys.append(geo)
+                        # except Exception as e:
+                        #     print(ee, e)
                     else:
                         success_count += 1
-                print(success_count)
+                # print(cp_count, success_count)
                 # print(ipolys)
 
                 fig = plt.figure()
@@ -235,6 +248,7 @@ class HumanTree(object):
                     bottom=0, left=0, top=cropsize / dpi, right=cropsize / dpi)
                 fig.set_size_inches(1, 1)
                 plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
+                plt.close()
 
             fpath = os.path.join('parcels', fname + '.png')
             crop_image = False if os.path.exists(fpath) else True
@@ -247,6 +261,9 @@ class HumanTree(object):
                 misc.imsave(fpath, npic)
 
             self._train_count += 1
+
+        print('Training on {} lots, skipped {} because they were '
+              'too large.'.format(self._train_count, lots_skipped))
 
     def get_coordinates(self, address):
         """Get lat/lon from address using Geocode API."""
@@ -288,7 +305,8 @@ class HumanTree(object):
         images = []
         masks = []
         for i in range(self._train_count):
-            images.append(misc.imread(parcel_paths[i])[:, :, :3])
+            image = misc.imread(parcel_paths[i])[:, :, :3]
+            images.append(image)
             mask = np.rint(
                 misc.imread(mask_paths[i])[:, :, 0] / 255).astype(int)
             masks.append(mask)
@@ -300,9 +318,9 @@ class HumanTree(object):
         from tf_unet import unet
         from tf_unet.image_util import SimpleDataProvider
 
-        net = unet.Unet(layers=6, features_root=16)
+        net = unet.Unet(layers=3, features_root=16)
         trainer = unet.Trainer(
-            net, optimizer="momentum", opt_kwargs=dict(momentum=0.2))
+            net, optimizer="adam", opt_kwargs=dict(learning_rate=0.00001))
         data, label = self.training_data()
         generator = SimpleDataProvider(data, label, channels=3)
         trainer.train(
