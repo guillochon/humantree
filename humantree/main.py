@@ -1,5 +1,6 @@
 """Command-line interface for class."""
 import argparse
+from operator import attrgetter
 
 from .humantree import HumanTree
 
