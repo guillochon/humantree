@@ -67,8 +67,6 @@ class HumanTree(object):
                                  for x in self._parcel_polygons]
 
         # Load canopy data.
-        # self._canopy_fname = self.download_file(self._TREE_CANOPY_URL)
-
         self._canopy_fname = 'ENVIRONMENTAL_TreeCanopy2014.json'
         with open(self._canopy_fname, 'r') as f:
             self._canopies = json.load(f)
@@ -91,53 +89,6 @@ class HumanTree(object):
             cps = self._canopy_polygons.extend([a for b in [
                 list(x.geoms) if 'multi' in str(type(
                     x)).lower() else [x] for x in cps] for a in b])
-
-        # self._canopy_polygons = [
-        #     x.get('geometry', {}).get('coordinates', [])
-        #     for x in self._canopies_topo.get('features', [])]
-        #
-        # # Convert canopies to polygons.
-        # scale = np.array(self._canopies_topo['transform']['scale'])
-        # trans = np.array(self._canopies_topo['transform']['translate'])
-        # arcs = [[
-        #     (y + trans).tolist() for y in (
-        #         np.cumsum(x, axis=0) * scale)] for x in self._canopies_topo[
-        #             'arcs']]
-        #
-        # self._canopies = []
-        # for ci, cano in enumerate(tqdm(self._canopies_topo['objects'][
-        #         'ENVIRONMENTAL_TreeCanopy2014']['geometries'])):
-        #     arc_ids = cano['arcs'][0]
-        #     # print(cano['arcs'])
-        #
-        #     poly = []
-        #     for ai, aid in enumerate(arc_ids):
-        #         lid = aid[0] if isinstance(aid, list) else aid
-        #         pos = np.sign(lid)
-        #         si = 1 if ai else 0
-        #         if pos:
-        #             larcs = arcs[lid]
-        #             poly.extend(larcs[si:])
-        #         else:
-        #             larcs = arcs[~lid]
-        #             poly.extend(larcs[si:])
-        #         # print(aid, pos, larcs)
-        #     u, ind = np.unique(poly, axis=0, return_index=True)
-        #     poly = u[np.argsort(ind)]
-        #     if poly.shape[0] < 3:
-        #         continue
-        #     # Hack for now.
-        #     cpoly = Polygon(poly)  # .convex_hull
-        #     if not cpoly.is_valid:
-        #         # print(cpoly)
-        #         # print(cpoly.exterior.type)
-        #         # print(cpoly.exterior.is_valid)
-        #         print(encode_coordinates([(
-        #             y, x) for x, y in cpoly.exterior.coords], 5))
-        #         continue
-        #         # raise ValueError('invalid poly')
-        #     else:
-        #         self._canopies.append(cpoly)
 
         with open('google.key', 'r') as f:
             self._google_key = f.readline().strip()
@@ -200,10 +151,6 @@ class HumanTree(object):
                 break
             poly = polys[0]
             mlon, mlat = poly.centroid.coords[0]
-            # print(query_url)
-            # Calculate physical size in meters of image.
-            # physical_size = cropsize * 156543.03392 * np.cos(
-            #     mlat * np.pi / 180) / (2 ** zoom)
             min_lon, min_lat, max_lon, max_lat = poly.bounds
             bp = self.get_static_map_bounds(
                 mlat, mlon, zoom, self._cropsize, self._cropsize)
@@ -220,25 +167,15 @@ class HumanTree(object):
                 ipolys = []
                 success_count = 0
                 for cp in self._canopy_polygons:
-                    # print(type(cp))
                     if cp.disjoint(bound_poly):
-                        # print('no overlap')
                         continue
                     try:
                         ipolys.append(cp.intersection(bound_poly).buffer(
                             sbuff).buffer(sbuff).buffer(sbuff).buffer(sbuff))
                     except Exception as ee:
                         print(ee)
-                        # try:
-                        #     for geo in cp.buffer(
-                        #             sbuff).intersection(bound_poly).geoms:
-                        #         ipolys.append(geo)
-                        # except Exception as e:
-                        #     print(ee, e)
                     else:
                         success_count += 1
-                # print(cp_count, success_count)
-                # print(ipolys)
 
                 fig = plt.figure()
                 ax = fig.gca()
@@ -397,8 +334,6 @@ class HumanTree(object):
 
         model.summary()
 
-        # import pdb; pdb.set_trace()
-
         model.compile(optimizer=Adam(lr=1e-3),
                       loss='binary_crossentropy',
                       metrics=['binary_crossentropy', 'acc'])
@@ -416,7 +351,6 @@ class HumanTree(object):
             #     imgs[i], (self._SCALED_SIZE, self._SCALED_SIZE, channels),
             #     preserve_range=True, mode='constant')
 
-        # imgs_p = imgs_p[..., np.newaxis]
         return imgs_p
 
     def prepare_data(self):
@@ -436,26 +370,24 @@ class HumanTree(object):
         self._imgs_mask_train = imgs_mask_train.astype('float32')
         self._imgs_mask_train /= 255.  # scale masks to [0, 1]
 
+    def notice(self, txt=''):
+        """Print a notice for the user."""
+        print('-' * 30)
+        print(txt)
+        print('-' * 30)
+
     def train(self):
         """Train DNN for image segmentation."""
-        print('-' * 30)
-        print('Loading and preprocessing train data...')
-        print('-' * 30)
+        self.notice('Loading and preprocessing train data...')
 
         self.prepare_data()
 
-        print('-' * 30)
-        print('Creating and compiling model...')
-        print('-' * 30)
+        self.notice('Creating and compiling model...')
         model = self.get_unet()
         model_checkpoint = ModelCheckpoint(
             'weights.h5', monitor='val_loss', save_best_only=True)
 
-        print('-' * 30)
-        print('Fitting model...')
-        print('-' * 30)
-
-        # import pdb; pdb.set_trace()
+        self.notice('Fitting model...')
 
         model.fit(
             self._imgs_train, self._imgs_mask_train, batch_size=4,
@@ -464,14 +396,10 @@ class HumanTree(object):
 
     def predict_test(self):
         """Test trained UNet."""
-        print('-' * 30)
-        print('Creating and compiling model...')
-        print('-' * 30)
+        self.notice('Creating and compiling model...')
         model = self.get_unet()
 
-        print('-' * 30)
-        print('Loading and preprocessing test data...')
-        print('-' * 30)
+        self.notice('Loading and preprocessing test data...')
         imgs_test, masks_test, ids_test = self.get_data(fractions=(0.8, 1.0))
         imgs_test = self.preprocess(imgs_test, 3)
 
@@ -479,20 +407,14 @@ class HumanTree(object):
         imgs_test -= self._imgs_mean
         imgs_test /= self._imgs_std
 
-        print('-' * 30)
-        print('Loading saved weights...')
-        print('-' * 30)
+        self.notice('Loading saved weights...')
         model.load_weights('weights.h5')
 
-        print('-' * 30)
-        print('Predicting masks on test data...')
-        print('-' * 30)
+        self.notice('Predicting masks on test data...')
         imgs_mask_test = model.predict(imgs_test, verbose=1)
         np.save('imgs_mask_test.npy', imgs_mask_test)
 
-        print('-' * 30)
-        print('Saving predicted masks to files...')
-        print('-' * 30)
+        self.notice('Saving predicted masks to files...')
         pred_dir = 'preds'
         if not os.path.exists(pred_dir):
             os.mkdir(pred_dir)
