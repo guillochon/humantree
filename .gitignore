@@ -108,6 +108,8 @@ venv.bak/
 *.geojson
 *.topojson
 *.png
+*.npy
+*.h5
 .DS_Store
 prediction/
 unet_trained/

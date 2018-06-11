@@ -2,6 +2,7 @@
 import json
 import os
 import pprint
+from glob import glob
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,9 +13,16 @@ from scipy import misc
 from tqdm import tqdm
 
 import googlemaps
+from keras import backend as K
+from keras.callbacks import ModelCheckpoint
+from keras.layers import (Conv2D, Conv2DTranspose, Input, MaxPooling2D,
+                          concatenate)
+from keras.models import Model
+from keras.optimizers import Adam
 # from pypolyline.util import encode_coordinates
 from shapely.geometry import Point, Polygon
-from glob import glob
+from skimage.io import imsave
+from skimage.transform import resize
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -35,6 +43,10 @@ class HumanTree(object):
         "ENVIRONMENTAL_TreeCanopy2014.topojson")
 
     _LAT_OFFSET = 2.e-5  # The LIDAR data is slightly offset from the images.
+
+    _SMOOTH = 1.0
+
+    _SCALED_SIZE = 512
 
     def __init__(self):
         """Initialize, loading data."""
@@ -74,7 +86,7 @@ class HumanTree(object):
                 y) >= 3] for x in raw_canpols]
 
         self._canopy_polygons = []
-        for canpoly in tqdm(raw_canpols):
+        for canpoly in tqdm(raw_canpols, desc='Extracting canopy polygons'):
             cps = [x.buffer(0) for x in canpoly]
             cps = self._canopy_polygons.extend([a for b in [
                 list(x.geoms) if 'multi' in str(type(
@@ -169,7 +181,7 @@ class HumanTree(object):
         croppix = 20
         dpi = 100.0
         sbuff = 2.e-6  # buffer size for smoothing tree regions
-        cropsize = imgsize - 2 * croppix
+        self._cropsize = imgsize - 2 * croppix
         # rearth = 6371000.0
         pattern = (
             "https://maps.googleapis.com/maps/api/staticmap?"
@@ -194,7 +206,7 @@ class HumanTree(object):
             #     mlat * np.pi / 180) / (2 ** zoom)
             min_lon, min_lat, max_lon, max_lat = poly.bounds
             bp = self.get_static_map_bounds(
-                mlat, mlon, zoom, cropsize, cropsize)
+                mlat, mlon, zoom, self._cropsize, self._cropsize)
 
             bound_poly = Polygon([
                 bp[0], [bp[0][0], bp[1][1]], bp[1], [bp[1][0], bp[0][1]]])
@@ -245,19 +257,23 @@ class HumanTree(object):
                 ax.set_xlim(bp[0][0], bp[1][0])
                 ax.set_ylim(bp[0][1], bp[1][1])
                 fig.subplots_adjust(
-                    bottom=0, left=0, top=cropsize / dpi, right=cropsize / dpi)
+                    bottom=0, left=0, top=self._SCALED_SIZE / dpi,
+                    right=self._SCALED_SIZE / dpi)
                 fig.set_size_inches(1, 1)
                 plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
                 plt.close()
 
             fpath = os.path.join('parcels', fname + '.png')
-            crop_image = False if os.path.exists(fpath) else True
+            process_image = False if os.path.exists(fpath) else True
             query_url = pattern.format(
                 mlat, mlon, zoom, imgsize, imgsize, self._google_key)
             self.download_file(query_url, fname=fpath)
-            if crop_image:
+            if process_image:
                 pic = misc.imread(fpath)
                 npic = pic[croppix:-croppix, croppix:-croppix]
+                npic = resize(
+                    npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
+                    preserve_range=True, mode='constant')
                 misc.imsave(fpath, npic)
 
             self._train_count += 1
@@ -297,32 +313,190 @@ class HumanTree(object):
 
         return ((lng - d_lng, lat - d_lat), (lng + d_lng, lat + d_lat))
 
-    def training_data(self):
+    def get_data(self, fractions=(0.0, 0.8)):
         """Return image and mask for training image segmentation."""
-        parcel_paths = list(sorted(glob(os.path.join('parcels', '*.png'))))
+        parcel_paths = list(sorted([
+            x for x in glob(os.path.join(
+                'parcels', '*.png')) if 'mask' not in x]))
         mask_paths = list(sorted(glob(os.path.join('parcels', '*-mask.png'))))
 
         images = []
         masks = []
-        for i in range(self._train_count):
+        min_i = 0 if fractions[0] == 0.0 else int(np.floor(
+            fractions[0] * self._train_count)) + 1
+        max_i = int(np.floor(fractions[1] * self._train_count))
+        indices = list(range(min_i, max_i))
+        pids = []
+        for i in indices:
             image = misc.imread(parcel_paths[i])[:, :, :3]
             images.append(image)
-            mask = np.rint(
-                misc.imread(mask_paths[i])[:, :, 0] / 255).astype(int)
+            mask = misc.imread(mask_paths[i])[:, :, [0]]
             masks.append(mask)
+            pids.append(int(parcel_paths[i].split('/')[-1].split('.')[0]))
 
-        return np.array(images), np.array(masks)
+        return np.array(images), np.array(masks), pids
+
+    def dice_coef(self, y_true, y_pred):
+        """Return the Dice coefficient."""
+        y_true_f = K.flatten(y_true)
+        y_pred_f = K.flatten(y_pred)
+        intersection = K.sum(y_true_f * y_pred_f)
+        return (2. * intersection + self._SMOOTH) / (
+            K.sum(y_true_f) + K.sum(y_pred_f) + self._SMOOTH)
+
+    def dice_coef_loss(self, y_true, y_pred):
+        """Return loss function (negative of the Dice coefficient)."""
+        return -self.dice_coef(y_true, y_pred)
+
+    def get_unet(self):
+        """Construct UNet."""
+        inputs = Input((self._SCALED_SIZE, self._SCALED_SIZE, 3))
+        # inputs = Input((512, 512, 3))
+        conv1 = Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
+        conv1 = Conv2D(32, (3, 3), activation='relu', padding='same')(conv1)
+        pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+
+        conv2 = Conv2D(64, (3, 3), activation='relu', padding='same')(pool1)
+        conv2 = Conv2D(64, (3, 3), activation='relu', padding='same')(conv2)
+        pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+        conv3 = Conv2D(128, (3, 3), activation='relu', padding='same')(pool2)
+        conv3 = Conv2D(128, (3, 3), activation='relu', padding='same')(conv3)
+        pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+
+        conv4 = Conv2D(256, (3, 3), activation='relu', padding='same')(pool3)
+        conv4 = Conv2D(256, (3, 3), activation='relu', padding='same')(conv4)
+        pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
+
+        conv5 = Conv2D(512, (3, 3), activation='relu', padding='same')(pool4)
+        conv5 = Conv2D(512, (3, 3), activation='relu', padding='same')(conv5)
+
+        up6 = concatenate([Conv2DTranspose(256, (2, 2), strides=(
+            2, 2), padding='same')(conv5), conv4], axis=3)
+        conv6 = Conv2D(256, (3, 3), activation='relu', padding='same')(up6)
+        conv6 = Conv2D(256, (3, 3), activation='relu', padding='same')(conv6)
+
+        up7 = concatenate([Conv2DTranspose(128, (2, 2), strides=(
+            2, 2), padding='same')(conv6), conv3], axis=3)
+        conv7 = Conv2D(128, (3, 3), activation='relu', padding='same')(up7)
+        conv7 = Conv2D(128, (3, 3), activation='relu', padding='same')(conv7)
+
+        up8 = concatenate([Conv2DTranspose(64, (2, 2), strides=(
+            2, 2), padding='same')(conv7), conv2], axis=3)
+        conv8 = Conv2D(64, (3, 3), activation='relu', padding='same')(up8)
+        conv8 = Conv2D(64, (3, 3), activation='relu', padding='same')(conv8)
+
+        up9 = concatenate([Conv2DTranspose(32, (2, 2), strides=(
+            2, 2), padding='same')(conv8), conv1], axis=3)
+        conv9 = Conv2D(32, (3, 3), activation='relu', padding='same')(up9)
+        conv9 = Conv2D(32, (3, 3), activation='relu', padding='same')(conv9)
+
+        conv10 = Conv2D(1, (1, 1), activation='sigmoid')(conv9)
+
+        model = Model(inputs=[inputs], outputs=[conv10])
+
+        model.summary()
+
+        # import pdb; pdb.set_trace()
+
+        model.compile(optimizer=Adam(lr=1e-3),
+                      loss='binary_crossentropy',
+                      metrics=['binary_crossentropy', 'acc'])
+
+        return model
+
+    def preprocess(self, imgs, channels=3):
+        """Put images in the appropriate format."""
+        imgs_p = np.ndarray(
+            (imgs.shape[0], self._SCALED_SIZE, self._SCALED_SIZE, channels),
+            dtype=np.uint8)
+        for i in tqdm(range(imgs.shape[0]), desc='Processing images'):
+            imgs_p[i] = imgs[i].astype(np.uint8)
+            # imgs_p[i] = resize(
+            #     imgs[i], (self._SCALED_SIZE, self._SCALED_SIZE, channels),
+            #     preserve_range=True, mode='constant')
+
+        # imgs_p = imgs_p[..., np.newaxis]
+        return imgs_p
+
+    def prepare_data(self):
+        """Get images and masks ready for UNet."""
+        imgs_train, imgs_mask_train, __ = self.get_data(fractions=(0.0, 0.8))
+
+        imgs_train = self.preprocess(imgs_train, 3)
+        imgs_mask_train = self.preprocess(imgs_mask_train, 1)
+
+        self._imgs_train = imgs_train.astype('float32')
+        self._imgs_mean = np.mean(self._imgs_train)  # mean for data centering
+        self._imgs_std = np.std(self._imgs_train)  # std for data normalization
+
+        self._imgs_train -= self._imgs_mean
+        self._imgs_train /= self._imgs_std
+
+        self._imgs_mask_train = imgs_mask_train.astype('float32')
+        self._imgs_mask_train /= 255.  # scale masks to [0, 1]
 
     def train(self):
         """Train DNN for image segmentation."""
-        from tf_unet import unet
-        from tf_unet.image_util import SimpleDataProvider
+        print('-' * 30)
+        print('Loading and preprocessing train data...')
+        print('-' * 30)
 
-        net = unet.Unet(layers=3, features_root=16)
-        trainer = unet.Trainer(
-            net, optimizer="adam", opt_kwargs=dict(learning_rate=0.00001))
-        data, label = self.training_data()
-        generator = SimpleDataProvider(data, label, channels=3)
-        trainer.train(
-            generator, "./unet_trained", training_iters=20, epochs=10,
-            display_step=2)
+        self.prepare_data()
+
+        print('-' * 30)
+        print('Creating and compiling model...')
+        print('-' * 30)
+        model = self.get_unet()
+        model_checkpoint = ModelCheckpoint(
+            'weights.h5', monitor='val_loss', save_best_only=True)
+
+        print('-' * 30)
+        print('Fitting model...')
+        print('-' * 30)
+
+        # import pdb; pdb.set_trace()
+
+        model.fit(
+            self._imgs_train, self._imgs_mask_train, batch_size=4,
+            epochs=5, verbose=1, shuffle=True, validation_split=0.2,
+            callbacks=[model_checkpoint])
+
+    def predict_test(self):
+        """Test trained UNet."""
+        print('-' * 30)
+        print('Creating and compiling model...')
+        print('-' * 30)
+        model = self.get_unet()
+
+        print('-' * 30)
+        print('Loading and preprocessing test data...')
+        print('-' * 30)
+        imgs_test, masks_test, ids_test = self.get_data(fractions=(0.8, 1.0))
+        imgs_test = self.preprocess(imgs_test, 3)
+
+        imgs_test = imgs_test.astype('float32')
+        imgs_test -= self._imgs_mean
+        imgs_test /= self._imgs_std
+
+        print('-' * 30)
+        print('Loading saved weights...')
+        print('-' * 30)
+        model.load_weights('weights.h5')
+
+        print('-' * 30)
+        print('Predicting masks on test data...')
+        print('-' * 30)
+        imgs_mask_test = model.predict(imgs_test, verbose=1)
+        np.save('imgs_mask_test.npy', imgs_mask_test)
+
+        print('-' * 30)
+        print('Saving predicted masks to files...')
+        print('-' * 30)
+        pred_dir = 'preds'
+        if not os.path.exists(pred_dir):
+            os.mkdir(pred_dir)
+        for image, id in zip(imgs_mask_test, ids_test):
+            image = (image[:, :, 0] * 255.).astype(np.uint8)
+            imsave(os.path.join(
+                pred_dir, 'pred_' + str(id).zfill(5) + '.png'), image)
