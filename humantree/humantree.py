@@ -207,9 +207,11 @@ class HumanTree(object):
                 shape = pic.shape
                 if (shape[0] != self._SCALED_SIZE or
                         shape[1] != self._SCALED_SIZE):
-                    dx = int(np.floor((shape[0] - self._SCALED_SIZE) / 2.0))
-                    dy = int(np.floor((shape[1] - self._SCALED_SIZE) / 2.0))
-                    npic = pic[dx:-dx, dy:-dy]
+                    dx = (shape[0] - self._SCALED_SIZE) / 2.0
+                    dy = (shape[1] - self._SCALED_SIZE) / 2.0
+                    dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
+                    dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
+                    npic = pic[dxm:-dxp, dym:-dyp]
                     misc.imsave(fpath, npic)
 
             fpath = os.path.join('parcels', fname + '.png')
