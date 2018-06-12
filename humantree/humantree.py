@@ -210,7 +210,7 @@ class HumanTree(object):
                 npic = pic[croppix:-croppix, croppix:-croppix]
                 npic = resize(
                     npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
-                    preserve_range=True, mode='constant')
+                    preserve_range=False, mode='constant', anti_aliasing=True)
                 misc.imsave(fpath, npic)
 
             self._train_count += 1
