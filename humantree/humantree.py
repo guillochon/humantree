@@ -202,6 +202,16 @@ class HumanTree(object):
                 plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
                 plt.close()
 
+                # If image is wrong size
+                pic = misc.imread(fpath)
+                shape = pic.shape
+                if (shape[0] != self._SCALED_SIZE or
+                        shape[1] != self._SCALED_SIZE):
+                    dx = int(np.floor((shape[0] - self._SCALED_SIZE) / 2.0))
+                    dy = int(np.floor((shape[1] - self._SCALED_SIZE) / 2.0))
+                    npic = pic[dx:-dx, dy:-dy]
+                    misc.imsave(fpath, npic)
+
             fpath = os.path.join('parcels', fname + '.png')
             process_image = False if os.path.exists(fpath) else True
             query_url = pattern.format(
@@ -212,7 +222,7 @@ class HumanTree(object):
                 npic = pic[croppix:-croppix, croppix:-croppix]
                 npic = resize(
                     npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
-                    preserve_range=False, mode='constant', anti_aliasing=True)
+                    preserve_range=False, mode='constant')
                 misc.imsave(fpath, npic)
 
             self._train_count += 1
