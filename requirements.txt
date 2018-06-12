@@ -1,0 +1,8 @@
+tqdm
+keras
+scikit-image
+numpy
+scipy
+matplotlib
+googlemaps
+shapely
