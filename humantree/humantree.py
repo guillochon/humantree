@@ -5,6 +5,8 @@ import pprint
 from glob import glob
 
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+
 import numpy as np
 import requests
 from matplotlib.collections import PatchCollection
