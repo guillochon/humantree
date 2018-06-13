@@ -348,7 +348,7 @@ class HumanTree(object):
 
         model.summary()
 
-        model.compile(optimizer=Adam(lr=1e-3),
+        model.compile(optimizer=Adam(lr=1e-4),
                       loss='binary_crossentropy',
                       metrics=['binary_crossentropy', 'acc'])
 
@@ -410,7 +410,7 @@ class HumanTree(object):
 
         model.fit(
             self._imgs_train, self._imgs_mask_train, batch_size=4,
-            epochs=5, verbose=1, shuffle=True, validation_split=0.2,
+            epochs=20, verbose=1, shuffle=True, validation_split=0.2,
             callbacks=[model_checkpoint])
 
     def predict_test(self):
