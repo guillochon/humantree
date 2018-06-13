@@ -21,28 +21,60 @@
 // and refresh the index.html to quickly explore the API.
 
 // Tiny TFJS train / predict example.
-async function myFirstTfjs() {
-  // Create a simple model.
-  const model = tf.sequential();
-  model.add(tf.layers.dense({units: 1, inputShape: [1]}));
-
-  // Prepare the model for training: Specify the loss and the optimizer.
-  model.compile({
-    loss: 'meanSquaredError',
-    optimizer: 'sgd'
-  });
-
-  // Generate some synthetic data for training. (y = 2x - 1)
-  const xs = tf.tensor2d([-1, 0, 1, 2, 3, 4], [6, 1]);
-  const ys = tf.tensor2d([-3, -1, 1, 3, 5, 7], [6, 1]);
-
-  // Train the model using the data.
-  await model.fit(xs, ys, {epochs: 250});
-
-  // Use the model to do inference on a data point the model hasn't seen.
-  // Should print approximately 39.
-  document.getElementById('micro_out_div').innerText +=
-      model.predict(tf.tensor2d([20], [1, 1]));
+async function loadModel() {
+  // Load model.
+  console.log('Loading model...');
+  this.model = await tf.loadModel('assets/model.json');
+  console.log('Model loaded.');
 }
 
-myFirstTfjs();
+async function predict(imageData) {
+
+  await tf.tidy(() => {
+
+    // Convert the canvas pixels to a Tensor of the matching shape
+    let img = tf.fromPixels(imageData, 1);
+    img = img.reshape([1, 512, 512, 1]);
+    img = tf.cast(img, 'float32');
+
+    // Make and format the predications
+    const output = this.model.predict(img);
+
+    // Save predictions on the component
+    this.predictions = Array.from(output.dataSync());
+
+    document.getElementById('predict').innerText = this.predictions;
+  });
+
+}
+
+$(function () {
+    $('#process').submit(function (e) {
+        console.log('hello');
+        e.preventDefault();  // prevent the form from 'submitting'
+
+        var url = e.target.action;  // get the target
+        var formData = $(this).serialize(); // get form data
+        $.post(url, formData, function (response) { // send; response.data will be what is returned
+            console.log(url);
+            console.log(response);
+            $("#image").attr("src", "queries/" + response);
+        });
+    })
+})
+
+// function processImage() {
+//     var xhr = new XMLHttpRequest();
+//     xhr.onreadystatechange = function(){
+//       var fname = xhr.responseText;
+//       document.getElementById("image").src = fname;
+//       return false;
+//     } // success case
+//     xhr.onerror = function(){ alert (xhr.responseText); } // failure case
+//     xhr.open (oFormElement.method, oFormElement.action, true);
+//     xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+//     xhr.send (new FormData (oFormElement));
+//     return false;
+// }
+
+loadModel();

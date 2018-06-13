@@ -20,27 +20,34 @@ class HumanTree(object):
     """Count trees, make suggestions where new trees should be added."""
 
     _TO_RAD = np.pi / 180
-
     _PARCELS_URL = (
         "https://raw.githubusercontent.com/cambridgegis/cambridgegis_data"
         "/master/Assessing/FY2018/FY2018_Parcels/"
         "ASSESSING_ParcelsFY2018.geojson")
-
     _TREE_CANOPY_URL = (
         "https://raw.githubusercontent.com/cambridgegis/cambridgegis_data/"
         "master/Environmental/Tree_Canopy_2014/"
         "ENVIRONMENTAL_TreeCanopy2014.topojson")
-
+    _PATTERN = (
+        "https://maps.googleapis.com/maps/api/staticmap?"
+        "center={},{}&zoom={}&maptype=satellite&size={}x{}"
+        "&key={}")
     _LAT_OFFSET = 2.e-5  # The LIDAR data is slightly offset from the images.
-
     _SMOOTH = 1.0
-
     _SCALED_SIZE = 512
+    _ZOOM = 20
+    _IMGSIZE = 640
+    _CROPPIX = 20
+    _DPI = 100.0
+    _SBUFF = 2.e-6  # buffer size for smoothing tree regions
+    _POINT_BUFF = 2.e-5
 
     def __init__(self):
         """Initialize, loading data."""
         import googlemaps
         from shapely.geometry import Polygon
+
+        self._dir_name = os.path.dirname(os.path.realpath(__file__))
 
         # Load parcel data.
         self._parcels_fname = self.download_file(self._PARCELS_URL)
@@ -59,7 +66,8 @@ class HumanTree(object):
                                  for x in self._parcel_polygons]
 
         # Load canopy data.
-        self._canopy_fname = 'ENVIRONMENTAL_TreeCanopy2014.json'
+        self._canopy_fname = os.path.join(
+            self._dir_name, '..', 'geo', 'ENVIRONMENTAL_TreeCanopy2014.json')
         with open(self._canopy_fname, 'r') as f:
             self._canopies = json.load(f)
 
@@ -75,6 +83,9 @@ class HumanTree(object):
             a, b + self._LAT_OFFSET) for a, b in y]) for y in x if len(
                 y) >= 3] for x in raw_canpols]
 
+        # REMOVE
+        raw_canpols = []
+
         self._canopy_polygons = []
         for canpoly in tqdm(raw_canpols, desc='Extracting canopy polygons'):
             cps = [x.buffer(0) for x in canpoly]
@@ -82,10 +93,12 @@ class HumanTree(object):
                 list(x.geoms) if 'multi' in str(type(
                     x)).lower() else [x] for x in cps] for a in b])
 
-        with open('google.key', 'r') as f:
+        with open(os.path.join(self._dir_name, '..', 'google.key'), 'r') as f:
             self._google_key = f.readline().strip()
 
         self._client = googlemaps.Client(key=self._google_key)
+
+        self._cropsize = self._IMGSIZE - 2 * self._CROPPIX
 
     def download_file(self, url, fname=None):
         """Download file if it doesn't exist locally."""
@@ -110,6 +123,7 @@ class HumanTree(object):
         lon, lat = self.get_coordinates(address)
         pt = Point(lon, lat)
 
+        result = None
         for polys in self._parcel_polygons:
             for poly in polys:
                 if poly.contains(pt):
@@ -117,27 +131,75 @@ class HumanTree(object):
                     result = poly
                     break
 
-        return result
+        return result, pt
+
+    def get_bound_poly(self, poly):
+        """Get bounding polygon for property."""
+        from shapely.geometry import Polygon
+
+        mlon, mlat = poly.centroid.coords[0]
+        min_lon, min_lat, max_lon, max_lat = poly.bounds
+        bp = self.get_static_map_bounds(
+            mlat, mlon, self._ZOOM, self._cropsize, self._cropsize)
+
+        return Polygon([
+            bp[0], [bp[0][0], bp[1][1]], bp[1], [
+                bp[1][0], bp[0][1]]]), mlat, mlon, bp
+
+    def get_image(
+        self, poly, mlat, mlon, zoom=None, imgsize=None, fname=None,
+            target_dir=None):
+        """Get satellite image from polygon boundaries."""
+        import uuid
+
+        zoom = self._ZOOM if zoom is None else zoom
+        imgsize = self._IMGSIZE if imgsize is None else imgsize
+        target_dir = 'parcels' if target_dir is None else target_dir
+
+        if fname is None:
+            fname = str(uuid.uuid4())
+
+        tdir = os.path.join(self._dir_name, '..', target_dir)
+        if not os.path.isdir(tdir):
+            os.mkdir(tdir)
+        fpath = os.path.join(self._dir_name, '..', tdir, fname + '.png')
+        process_image = False if os.path.exists(fpath) else True
+        query_url = self._PATTERN.format(
+            mlat, mlon, zoom, imgsize, imgsize,
+            self._google_key)
+        self.download_file(query_url, fname=fpath)
+        if process_image:
+            pic = misc.imread(fpath)
+            npic = pic[self._CROPPIX:-self._CROPPIX,
+                       self._CROPPIX:-self._CROPPIX]
+            npic = resize(
+                npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
+                preserve_range=False, mode='constant')
+            misc.imsave(fpath, npic)
+
+        return fpath
+
+    def get_image_from_address(self, address):
+        """Get an image from an address."""
+        if not address:
+            raise ValueError('Invalid address `{}`!'.format(address))
+
+        poly, pt = self.find_poly(address)
+        if poly is None:
+            poly = pt.buffer(self._POINT_BUFF)
+        print(poly.exterior.coords, pt.coords)
+        bound_poly, mlat, mlon, __ = self.get_bound_poly(poly)
+        fpath = self.get_image(bound_poly, mlat, mlon, target_dir='queries')
+        return fpath
 
     def get_poly_images(self, limit=None, purge=False):
         """Retrieve images of all polygons on Google Maps."""
-        from shapely.geometry import Polygon
         from matplotlib.patches import Polygon as MPPoly
         from matplotlib.collections import PatchCollection
         import matplotlib.pyplot as plt
         plt.switch_backend('agg')
 
-        zoom = 20
-        imgsize = 640
-        croppix = 20
-        dpi = 100.0
-        sbuff = 2.e-6  # buffer size for smoothing tree regions
-        self._cropsize = imgsize - 2 * croppix
         # rearth = 6371000.0
-        pattern = (
-            "https://maps.googleapis.com/maps/api/staticmap?"
-            "center={},{}&zoom={}&maptype=satellite&size={}x{}"
-            "&key={}")
         if not os.path.isdir('parcels'):
             os.mkdir('parcels')
         if purge:
@@ -150,19 +212,14 @@ class HumanTree(object):
             if limit is not None and pi >= limit:
                 break
             poly = polys[0]
-            mlon, mlat = poly.centroid.coords[0]
-            min_lon, min_lat, max_lon, max_lat = poly.bounds
-            bp = self.get_static_map_bounds(
-                mlat, mlon, zoom, self._cropsize, self._cropsize)
-
-            bound_poly = Polygon([
-                bp[0], [bp[0][0], bp[1][1]], bp[1], [bp[1][0], bp[0][1]]])
+            bound_poly, mlat, mlon, bp = self.get_bound_poly(poly)
             if not bound_poly.contains(poly):
                 lots_skipped += 1
                 continue
 
             fname = str(pi).zfill(5)
-            fpath = os.path.join('parcels', fname + '-mask.png')
+            fpath = os.path.join(
+                self._dir_name, '..', 'parcels', fname + '-mask.png')
             if not os.path.exists(fpath):
                 ipolys = []
                 success_count = 0
@@ -171,7 +228,8 @@ class HumanTree(object):
                         continue
                     try:
                         ipolys.append(cp.intersection(bound_poly).buffer(
-                            sbuff).buffer(sbuff).buffer(sbuff).buffer(sbuff))
+                            self._SBUFF).buffer(self._SBUFF).buffer(
+                                self._SBUFF).buffer(self._SBUFF))
                     except Exception as ee:
                         print(ee)
                     else:
@@ -194,10 +252,11 @@ class HumanTree(object):
                 ax.set_xlim(bp[0][0], bp[1][0])
                 ax.set_ylim(bp[0][1], bp[1][1])
                 fig.subplots_adjust(
-                    bottom=0, left=0, top=self._SCALED_SIZE / dpi,
-                    right=self._SCALED_SIZE / dpi)
+                    bottom=0, left=0, top=self._SCALED_SIZE / self._DPI,
+                    right=self._SCALED_SIZE / self._DPI)
                 fig.set_size_inches(1, 1)
-                plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
+                plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
+                            pad_inches=0)
                 plt.close()
 
                 # If image is wrong size
@@ -212,18 +271,7 @@ class HumanTree(object):
                     npic = pic[dxm:-dxp, dym:-dyp]
                     misc.imsave(fpath, npic)
 
-            fpath = os.path.join('parcels', fname + '.png')
-            process_image = False if os.path.exists(fpath) else True
-            query_url = pattern.format(
-                mlat, mlon, zoom, imgsize, imgsize, self._google_key)
-            self.download_file(query_url, fname=fpath)
-            if process_image:
-                pic = misc.imread(fpath)
-                npic = pic[croppix:-croppix, croppix:-croppix]
-                npic = resize(
-                    npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
-                    preserve_range=False, mode='constant')
-                misc.imsave(fpath, npic)
+            self.get_image(bound_poly, mlat, mlon, fname=fname)
 
             self._train_count += 1
 
@@ -389,7 +437,7 @@ class HumanTree(object):
 
         self.prepare_data()
 
-        with open('meta.pkl', 'wb') as f:
+        with open(os.path.join(self._dir_name, '..', 'meta.pkl'), 'wb') as f:
             pickle.dump([self._imgs_mean, self._imgs_std], f)
 
         self.notice('Creating and compiling model...')

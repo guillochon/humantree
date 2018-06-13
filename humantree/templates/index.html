@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.6"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+  <script src="{{ url_for('static', filename='predict.js') }}"></script>
+</head>
 <body>
-
-<p>Clicking here will make me dissapear</p>
-
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.7.0"></script>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
-<script src="{{ url_for('static', filename='predict.js') }}"></script>
+  <form action="process" id="process" method="post">
+    <p><input type="text" name="address" placeholder="Enter your address"></input></p>
+    <p><input type="submit" value="Find trees"></p>
+    <div id="predict"></div>
+  </form>
 </body>
+<img id="image">
 </html>
