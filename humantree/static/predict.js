@@ -16,19 +16,11 @@ async function predict(imageData) {
     std = tf.scalar(50.741535);
     img = img.sub(mean).div(std);
     img = img.reshape([1, 512, 512, 3]);
-    console.log(img);
-    console.log(img.shape);
 
     const output = Uint8ClampedArray.from(this.model.predict(img).mul(
       tf.scalar(255.0)).dataSync());
 
-    // console.log(output);
-
     drawImage(output);
-    // var blob = new Blob(output, {type: "image/png"});
-    // var url = URL.createObjectURL(blob);
-
-    // $("#predict").attr("src", url);
   });
 
 }
@@ -42,9 +34,9 @@ function drawImage(image) {
     for(var x = 0; x < width; x++) {
         var ipos = (y * width + x);
         var pos = ipos * 4; // position in buffer based on x and y
-        buffer[pos  ] = image[ipos];    // some R value [0, 255]
+        buffer[pos  ] = 0; // image[ipos];    // some R value [0, 255]
         buffer[pos+1] = image[ipos];    // some G value
-        buffer[pos+2] = image[ipos];    // some B value
+        buffer[pos+2] = 0; // image[ipos];    // some B value
         buffer[pos+3] = 255;           // set alpha channel
     }
   }
@@ -68,8 +60,10 @@ function drawImage(image) {
   var dataUri = canvas.toDataURL(); // produces a PNG file
 
   var cimage = new Image();
+  cimage.id = 'predict';
   cimage.src = dataUri;
-  document.body.appendChild(cimage);
+  var el = document.getElementById('predict');
+  el.parentNode.replaceChild(cimage, el);
 }
 
 $(function () {
@@ -79,7 +73,7 @@ $(function () {
         var url = e.target.action;  // get the target
         var formData = $(this).serialize(); // get form data
         $.post(url, formData, function (response) { // send; response.data will be what is returned
-            $("#image").attr("src", "queries/" + response);
+            $("#satellite").attr("src", "queries/" + response);
             $.getJSON("queries/" + response.replace(
                 '.png', '.json'), function(json) {
               predict(json);
