@@ -6,20 +6,10 @@ from glob import glob
 
 import numpy as np
 import requests
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon as MPPoly
 from scipy import misc
 from tqdm import tqdm
 
-import googlemaps
-from keras import backend as K
-from keras.callbacks import ModelCheckpoint
-from keras.layers import (Conv2D, Conv2DTranspose, Input, MaxPooling2D,
-                          concatenate)
-from keras.models import Model
-from keras.optimizers import Adam
 # from pypolyline.util import encode_coordinates
-from shapely.geometry import Point, Polygon
 from skimage.io import imsave
 from skimage.transform import resize
 
@@ -49,6 +39,9 @@ class HumanTree(object):
 
     def __init__(self):
         """Initialize, loading data."""
+        import googlemaps
+        from shapely.geometry import Polygon
+
         # Load parcel data.
         self._parcels_fname = self.download_file(self._PARCELS_URL)
 
@@ -112,6 +105,8 @@ class HumanTree(object):
 
     def find_poly(self, address):
         """Count trees on a property."""
+        from shapely.geometry import Point
+
         lon, lat = self.get_coordinates(address)
         pt = Point(lon, lat)
 
@@ -126,6 +121,9 @@ class HumanTree(object):
 
     def get_poly_images(self, limit=None, purge=False):
         """Retrieve images of all polygons on Google Maps."""
+        from shapely.geometry import Polygon
+        from matplotlib.patches import Polygon as MPPoly
+        from matplotlib.collections import PatchCollection
         import matplotlib.pyplot as plt
         plt.switch_backend('agg')
 
@@ -287,20 +285,13 @@ class HumanTree(object):
 
         return np.array(images), np.array(masks), pids
 
-    def dice_coef(self, y_true, y_pred):
-        """Return the Dice coefficient."""
-        y_true_f = K.flatten(y_true)
-        y_pred_f = K.flatten(y_pred)
-        intersection = K.sum(y_true_f * y_pred_f)
-        return (2. * intersection + self._SMOOTH) / (
-            K.sum(y_true_f) + K.sum(y_pred_f) + self._SMOOTH)
-
-    def dice_coef_loss(self, y_true, y_pred):
-        """Return loss function (negative of the Dice coefficient)."""
-        return -self.dice_coef(y_true, y_pred)
-
     def get_unet(self):
         """Construct UNet."""
+        from keras.optimizers import Adam
+        from keras.models import Model
+        from keras.layers import (Conv2D, Conv2DTranspose, Input, MaxPooling2D,
+                                  concatenate)
+
         inputs = Input((self._SCALED_SIZE, self._SCALED_SIZE, 3))
         # inputs = Input((512, 512, 3))
         conv1 = Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
@@ -354,16 +345,14 @@ class HumanTree(object):
 
         return model
 
-    def preprocess(self, imgs, channels=3):
+    def preprocess(self, imgs, channels=3, label='images'):
         """Put images in the appropriate format."""
         imgs_p = np.ndarray(
             (imgs.shape[0], self._SCALED_SIZE, self._SCALED_SIZE, channels),
             dtype=np.uint8)
-        for i in tqdm(range(imgs.shape[0]), desc='Processing images'):
+        for i in tqdm(range(
+                imgs.shape[0]), desc='Converting {}'.format(label)):
             imgs_p[i] = imgs[i].astype(np.uint8)
-            # imgs_p[i] = resize(
-            #     imgs[i], (self._SCALED_SIZE, self._SCALED_SIZE, channels),
-            #     preserve_range=True, mode='constant')
 
         return imgs_p
 
@@ -393,6 +382,8 @@ class HumanTree(object):
     def train(self):
         """Train DNN for image segmentation."""
         import pickle
+        from keras import backend as K
+        from keras.callbacks import ModelCheckpoint
 
         self.notice('Loading and preprocessing train data...')
 
@@ -408,10 +399,12 @@ class HumanTree(object):
 
         self.notice('Fitting model...')
 
+        tbCallBack = K.callbacks.TensorBoard()
+
         model.fit(
             self._imgs_train, self._imgs_mask_train, batch_size=8,
             epochs=20, verbose=1, shuffle=True, validation_split=0.2,
-            callbacks=[model_checkpoint])
+            callbacks=[model_checkpoint, tbCallBack])
 
     def predict_test(self):
         """Test trained UNet."""
