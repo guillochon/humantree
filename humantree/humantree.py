@@ -404,8 +404,8 @@ class HumanTree(object):
         self.notice('Fitting model...')
 
         model.fit(
-            self._imgs_train, self._imgs_mask_train, batch_size=4,
-            epochs=5, verbose=1, shuffle=True, validation_split=0.2,
+            self._imgs_train, self._imgs_mask_train, batch_size=8,
+            epochs=20, verbose=1, shuffle=True, validation_split=0.2,
             callbacks=[model_checkpoint])
 
     def predict_test(self):
