@@ -4,9 +4,6 @@ import os
 import pprint
 from glob import glob
 
-import matplotlib.pyplot as plt
-plt.switch_backend('agg')
-
 import numpy as np
 import requests
 from matplotlib.collections import PatchCollection
@@ -129,6 +126,9 @@ class HumanTree(object):
 
     def get_poly_images(self, limit=None, purge=False):
         """Retrieve images of all polygons on Google Maps."""
+        import matplotlib.pyplot as plt
+        plt.switch_backend('agg')
+
         zoom = 20
         imgsize = 640
         croppix = 20
@@ -392,9 +392,14 @@ class HumanTree(object):
 
     def train(self):
         """Train DNN for image segmentation."""
+        import pickle
+
         self.notice('Loading and preprocessing train data...')
 
         self.prepare_data()
+
+        with open('meta.pkl', 'w') as f:
+            pickle.dump([self._imgs_mean, self._imgs_std], f)
 
         self.notice('Creating and compiling model...')
         model = self.get_unet()
