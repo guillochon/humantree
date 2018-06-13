@@ -190,6 +190,9 @@ class HumanTree(object):
         print(poly.exterior.coords, pt.coords)
         bound_poly, mlat, mlon, __ = self.get_bound_poly(poly)
         fpath = self.get_image(bound_poly, mlat, mlon, target_dir='queries')
+        pic = misc.imread(fpath)
+        with open(fpath.replace('.png', '.json'), 'w') as f:
+            json.dump(pic.tolist(), f, separators=(',',':'), indent=0)
         return fpath
 
     def get_poly_images(self, limit=None, purge=False):
@@ -429,7 +432,6 @@ class HumanTree(object):
 
     def train(self):
         """Train DNN for image segmentation."""
-        import pickle
         from keras import backend as K
         from keras.callbacks import ModelCheckpoint
 
@@ -437,8 +439,8 @@ class HumanTree(object):
 
         self.prepare_data()
 
-        with open(os.path.join(self._dir_name, '..', 'meta.pkl'), 'wb') as f:
-            pickle.dump([self._imgs_mean, self._imgs_std], f)
+        with open(os.path.join(self._dir_name, '..', 'meta.json'), 'w') as f:
+            json.dump([self._imgs_mean, self._imgs_std], f)
 
         self.notice('Creating and compiling model...')
         model = self.get_unet()
