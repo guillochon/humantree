@@ -1,15 +1,34 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.6"></script>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
-  <script src="{{ url_for('static', filename='predict.js') }}"></script>
-</head>
-<body>
-  <form action="process" id="process" method="post">
-    <p><input type="text" name="address" placeholder="Enter your address"></input></p>
-    <p><input type="submit" value="Find trees"></p>
-  </form>
-</body>
-<div id="images"><img id="satellite"><img id="predict"></div>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.6"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+    <script src="{{ url_for('static', filename='predict.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <div class="page">
+      <h1>HumanTree</h1>
+      <div class=metanav>
+        test
+      </div>
+      {% for message in get_flashed_messages() %}
+        <div class=flash>{{ message }}</div>
+      {% endfor %}
+      <form action="process" id="process" method="post">
+        <p><input type="text" class="address" name="address" placeholder="Enter your address"></input></p>
+        <p><button type="submit" class="btn">Analyze trees on property</button>
+      </form>
+      <div id="loader" class="cssload-container" style="display: none">
+        <div class="cssload-thecube">
+        	<div class="cssload-cube cssload-c1"></div>
+        	<div class="cssload-cube cssload-c2"></div>
+        	<div class="cssload-cube cssload-c4"></div>
+        	<div class="cssload-cube cssload-c3"></div>
+        </div>
+        Analyzing with neural net...
+      </div>
+      <div id="images" class="images"><img id="satellite"><img id="predict"></div>
+    </div>
+  </body>
 </html>

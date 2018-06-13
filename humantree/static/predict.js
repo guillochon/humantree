@@ -1,3 +1,6 @@
+var width = 512;
+var height = 512;
+
 async function loadModel() {
   // Load model.
   console.log('Loading model...');
@@ -26,17 +29,15 @@ async function predict(imageData) {
 }
 
 function drawImage(image) {
-  var width = 512;
-  var height = 512;
   var buffer = new Uint8ClampedArray(width * height * 4);
 
   for(var y = 0; y < height; y++) {
     for(var x = 0; x < width; x++) {
         var ipos = (y * width + x);
         var pos = ipos * 4; // position in buffer based on x and y
-        buffer[pos  ] = 0; // image[ipos];    // some R value [0, 255]
-        buffer[pos+1] = image[ipos];    // some G value
-        buffer[pos+2] = 0; // image[ipos];    // some B value
+        buffer[pos  ] = image[ipos];   // some R value [0, 255]
+        buffer[pos+1] = image[ipos];   // some G value
+        buffer[pos+2] = image[ipos];   // some B value
         buffer[pos+3] = 255;           // set alpha channel
     }
   }
@@ -64,19 +65,29 @@ function drawImage(image) {
   cimage.src = dataUri;
   var el = document.getElementById('predict');
   el.parentNode.replaceChild(cimage, el);
+  var pred = $("#predict");
+  pred.width(width / 2);
+  pred.height(height / 2);
 }
 
 $(function () {
     $('#process').submit(function (e) {
         e.preventDefault();  // prevent the form from 'submitting'
+        document.getElementById('loader').style.display = "block"
+        document.getElementById('images').style.display = "none"
 
         var url = e.target.action;  // get the target
         var formData = $(this).serialize(); // get form data
         $.post(url, formData, function (response) { // send; response.data will be what is returned
-            $("#satellite").attr("src", "queries/" + response);
+            var sat = $("#satellite");
+            sat.attr("src", "queries/" + response);
+            sat.width(width / 2);
+            sat.height(height / 2);
             $.getJSON("queries/" + response.replace(
                 '.png', '.json'), function(json) {
               predict(json);
+              document.getElementById('loader').style.display = "none"
+              document.getElementById('images').style.display = "block"
             });
         });
     })
