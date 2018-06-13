@@ -398,7 +398,7 @@ class HumanTree(object):
 
         self.prepare_data()
 
-        with open('meta.pkl', 'w') as f:
+        with open('meta.pkl', 'wb') as f:
             pickle.dump([self._imgs_mean, self._imgs_std], f)
 
         self.notice('Creating and compiling model...')
@@ -440,4 +440,4 @@ class HumanTree(object):
         for image, id in zip(imgs_mask_test, ids_test):
             image = (image[:, :, 0] * 255.).astype(np.uint8)
             imsave(os.path.join(
-                pred_dir, 'pred_' + str(id).zfill(5) + '.png'), image)
+                pred_dir, str(id).zfill(5) + '-pred.png'), image)
