@@ -115,3 +115,4 @@ prediction/
 unet_trained/
 assets/
 queries/
+logs*/
