@@ -2,6 +2,7 @@ var width = 512;
 var height = 512;
 var img = undefined;
 var mets = undefined;
+var address = undefined;
 
 async function loadModel() {
   // Load model.
@@ -82,12 +83,19 @@ function metrics(image) {
     url: '/metrics',
     method: 'POST',
     dataType: 'json',
-    data: {'image': image.join(',')},
+    data: {'image': image.join(','), 'address': address},
     success: function (data) {
       mets = data;
       console.log(mets);
-      document.getElementById('metrics').innerHTML =
-        String((mets['fraction'] * 100).toFixed(2)) + '% of property shaded.'
+      document.getElementById('metrics').style.display = "block"
+      var met_str = '';
+      met_str += String((
+        mets['fraction'] * 100).toFixed(1)) + '% of property shaded.<br>'
+      met_str += 'Heating & cooling costs: $' + String((
+        mets['cost']).toFixed(2)) + ' per year.<br>'
+      met_str += 'Savings from trees: $' + String((
+        mets['savings']).toFixed(2)) + ' per year.'
+      document.getElementById('metrics').innerHTML = met_str;
     }
   })
 }
@@ -121,8 +129,10 @@ function handleProcess(response) {
 $(function() {
   $('#process').submit(function(e) {
     e.preventDefault(); // prevent the form from 'submitting'
+    address = document.getElementById('address').value
     document.getElementById('analyzer').style.display = "block"
     document.getElementById('images').style.display = "none"
+    document.getElementById('metrics').style.display = "none"
 
     var url = e.target.action; // get the target
     var formData = $(this).serialize(); // get form data

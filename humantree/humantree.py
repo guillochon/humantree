@@ -41,11 +41,25 @@ class HumanTree(object):
     _DPI = 100.0
     _SBUFF = 2.e-6  # buffer size for smoothing tree regions
     _POINT_BUFF = 2.e-5
+    _REGIONS = {
+        'ENC': ['IL', 'IN', 'MI', 'OH', 'WI'],
+        'WNC': ['IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD'],
+        'PAC': ['CA', 'OR', 'WA', 'AK'],
+        'MTN': ['AZ', 'CO', 'ID', 'MT', 'NV', 'NM', 'UT', 'WY'],
+        'NEC': ['CT', 'ME', 'MA', 'NH', 'RI', 'VT'],
+        'MAC': ['NY', 'NJ', 'PE', 'WV'],
+        'SAC': ['MD', 'DE', 'DC', 'WV', 'VA', 'NC', 'SC', 'GA', 'FL'],
+        'ESC': ['KY', 'TN', 'MS', 'AL'],
+        'WSC': ['TX', 'OK', 'AR', 'LA']
+    }
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """Initialize, loading data."""
+        import eia
         import googlemaps
         from shapely.geometry import Polygon
+
+        load_canopy_polys = kwargs.get('load_canopy_polys', False)
 
         self._dir_name = os.path.dirname(os.path.realpath(__file__))
 
@@ -65,7 +79,20 @@ class HumanTree(object):
         self._parcel_polygons = [[Polygon(y) for y in x if len(y) >= 3]
                                  for x in self._parcel_polygons]
 
+        with open(os.path.join(self._dir_name, '..', 'google.key'), 'r') as f:
+            self._google_key = f.readline().strip()
+        self._google_client = googlemaps.Client(key=self._google_key)
+
+        with open(os.path.join(self._dir_name, '..', 'eia.key'), 'r') as f:
+            self._eia_key = f.readline().strip()
+        self._eia_client = eia.API(self._eia_key)
+
+        self._cropsize = self._IMGSIZE - 2 * self._CROPPIX
+
         # Load canopy data.
+        if not load_canopy_polys:
+            return
+
         self._canopy_fname = os.path.join(
             self._dir_name, '..', 'geo', 'ENVIRONMENTAL_TreeCanopy2014.json')
         with open(self._canopy_fname, 'r') as f:
@@ -83,22 +110,12 @@ class HumanTree(object):
             a, b + self._LAT_OFFSET) for a, b in y]) for y in x if len(
                 y) >= 3] for x in raw_canpols]
 
-        # REMOVE
-        raw_canpols = []
-
         self._canopy_polygons = []
         for canpoly in tqdm(raw_canpols, desc='Extracting canopy polygons'):
             cps = [x.buffer(0) for x in canpoly]
             cps = self._canopy_polygons.extend([a for b in [
                 list(x.geoms) if 'multi' in str(type(
                     x)).lower() else [x] for x in cps] for a in b])
-
-        with open(os.path.join(self._dir_name, '..', 'google.key'), 'r') as f:
-            self._google_key = f.readline().strip()
-
-        self._client = googlemaps.Client(key=self._google_key)
-
-        self._cropsize = self._IMGSIZE - 2 * self._CROPPIX
 
     def download_file(self, url, fname=None):
         """Download file if it doesn't exist locally."""
@@ -281,9 +298,42 @@ class HumanTree(object):
         print('Training on {} lots, skipped {} because they were '
               'too large.'.format(self._train_count, lots_skipped))
 
+    def get_state(self, address):
+        """Get lat/lon from address using Geocode API."""
+        result = self._google_client.geocode(address)
+
+        acs = result[0].get('address_components', {})
+        state = [x for x in acs if 'administrative_area_level_1' in x.get(
+            'types')][0].get('short_name')
+
+        return state
+
+    def get_electricity_price(self, state):
+        """Get price of electricity per kwh."""
+        series = 'ELEC.PRICE.{}-ALL.M'.format(state)
+        result = self._eia_client.data_by_series(series)
+
+        result = [(int(k.replace(' ', '')), v) for k, v in result[
+            list(result.keys())[0]].items()]
+        result = sorted(result)[-1][1]
+        return result
+
+    def get_degree_days(self, state, type='cooling'):
+        """Get degree days for a given state."""
+        region = [k for k, v in self._REGIONS.items() if state in v][0]
+
+        series = 'STEO.ZW{}D_{}.A'.format(
+            'C' if type == 'cooling' else 'H', region)
+        result = self._eia_client.data_by_series(series)
+
+        result = [(int(k.replace(' ', '')), v) for k, v in result[
+            list(result.keys())[0]].items()]
+        result = sorted(result)[-1][1]
+        return result
+
     def get_coordinates(self, address):
         """Get lat/lon from address using Geocode API."""
-        result = self._client.geocode(address)
+        result = self._google_client.geocode(address)
 
         location = result[0].get('geometry', {}).get('location', {})
 

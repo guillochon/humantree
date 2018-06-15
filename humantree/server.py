@@ -40,9 +40,27 @@ def metrics():
     """Process an address."""
     if request.method == 'POST':
         image = request.form.get('image')
-        data = [float(x) for x in image.split(',')]
-        fraction = np.sum(data) / (255 * 512.0 * 512)
-        return json.dumps({'fraction': fraction})
+        address = request.form.get('address')
+        data = np.array([float(x) for x in image.split(',')])
+        data[data < 255 / 2.0] = 0
+        data[data > 255 / 2.0] = 1
+        fraction = np.sum(1 - data) / (512.0 * 512)
+        state = ht.get_state(address)
+        eprice = ht.get_electricity_price(state) / 100
+        hdd = ht.get_degree_days(state, 'heating')
+        cdd = ht.get_degree_days(state, 'cooling')
+
+        # Gross approximation: kwh usage = 0.5 * dd.
+        cost = 0.5 * (hdd + cdd) * eprice
+
+        # Savings: Assume 365 * 5 dd for full tree coverage.
+        savings = 365 * 5 * eprice * fraction
+
+        return json.dumps({
+            'fraction': fraction,
+            'cost': cost,
+            'savings': savings
+        })
 
 
 @app.route('/favicon.ico')
@@ -59,6 +77,6 @@ def send_file(path):
     return send_from_directory('', path)
 
 
-ht = HumanTree()
+ht = HumanTree(load_canopy_polys=False)
 if __name__ == '__main__':
     app.run_server(debug=True)

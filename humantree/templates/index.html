@@ -16,7 +16,7 @@
         <div class=flash>{{ message }}</div>
       {% endfor %}
       <form action="process" id="process" method="post">
-        <p><input type="text" class="address" name="address" placeholder="Enter your street address"></input></p>
+        <p><input type="text" class="address" id="address" name="address" placeholder="Enter your street address"></input></p>
         <p><button type="submit" class="btn" id="btn" disabled>Analyze trees on property</button>
       </form>
       <div id="loader" class="cssload-container">

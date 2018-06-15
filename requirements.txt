@@ -6,3 +6,4 @@ scipy
 matplotlib
 googlemaps
 shapely
+EIA_python
