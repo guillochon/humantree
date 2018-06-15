@@ -57,6 +57,7 @@ class HumanTree(object):
         """Initialize, loading data."""
         import eia
         import googlemaps
+        import zillow
         from shapely.geometry import Polygon
 
         load_canopy_polys = kwargs.get('load_canopy_polys', False)
@@ -86,6 +87,10 @@ class HumanTree(object):
         with open(os.path.join(self._dir_name, '..', 'eia.key'), 'r') as f:
             self._eia_key = f.readline().strip()
         self._eia_client = eia.API(self._eia_key)
+
+        with open(os.path.join(self._dir_name, '..', 'zillow.key'), 'r') as f:
+            self._zillow_key = f.readline().strip()
+        self._zillow_client = zillow.ValuationApi()
 
         self._cropsize = self._IMGSIZE - 2 * self._CROPPIX
 
@@ -308,6 +313,16 @@ class HumanTree(object):
 
         return state
 
+    def get_zip(self, address):
+        """Get zip from address using Geocode API."""
+        result = self._google_client.geocode(address)
+
+        acs = result[0].get('address_components', {})
+        pc = [x for x in acs if 'postal_code' in x.get(
+            'types')][0].get('short_name')
+
+        return pc
+
     def get_electricity_price(self, state):
         """Get price of electricity per kwh."""
         series = 'ELEC.PRICE.{}-ALL.M'.format(state)
@@ -330,6 +345,11 @@ class HumanTree(object):
             list(result.keys())[0]].items()]
         result = sorted(result)[-1][1]
         return result
+
+    def get_zillow(self, address, postal_code):
+        """Get square feet of a property."""
+        return self._zillow_client.GetDeepSearchResults(
+            self._zillow_key, address, postal_code, True)
 
     def get_coordinates(self, address):
         """Get lat/lon from address using Geocode API."""

@@ -86,16 +86,26 @@ function metrics(image) {
     data: {'image': image.join(','), 'address': address},
     success: function (data) {
       mets = data;
-      console.log(mets);
-      document.getElementById('metrics').style.display = "block"
+      document.getElementById('metrizer').style.display = "none"
       var met_str = '';
-      met_str += String((
-        mets['fraction'] * 100).toFixed(1)) + '% of property shaded.<br>'
+      met_str += '<strong>' + String((
+        mets['fraction'] * 100).toFixed(1)) + '%</strong> of property shaded.<br><br>'
       met_str += 'Heating & cooling costs: $' + String((
-        mets['cost']).toFixed(2)) + ' per year.<br>'
-      met_str += 'Savings from trees: $' + String((
-        mets['savings']).toFixed(2)) + ' per year.'
+        mets['cost']).toFixed(0)) + ' per year.<br>'
+      met_str += 'Savings from trees: <strong>$' + String((
+        mets['savings']).toFixed(0)) + ' per year</strong>.<br><br>'
+      met_str += 'Noise abatement from trees: <strong>' + String((
+        mets['noise_abatement']).toFixed(1)) + ' dB</strong>.<br><br>'
+      if (mets['house_value'] > 0.0) {
+        met_str += 'Estimated house value: $' + String((
+          mets['house_value']).toFixed(0)).replace(
+            /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
+        met_str += 'Value of trees: <strong>$' + String((
+          mets['value_increase']).toFixed(0)).replace(
+            /\B(?=(\d{3})+(?!\d))/g, ",") + '</strong>.'
+      }
       document.getElementById('metrics').innerHTML = met_str;
+      document.getElementById('metrics').style.display = "block"
     }
   })
 }
@@ -114,6 +124,7 @@ function handleProcess(response) {
       document.getElementById('images').style.display = "block"
     },
     complete: function () {
+      document.getElementById('metrizer').style.display = "block"
       metrics(img);
     }
   });

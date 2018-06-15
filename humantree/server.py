@@ -50,16 +50,38 @@ def metrics():
         hdd = ht.get_degree_days(state, 'heating')
         cdd = ht.get_degree_days(state, 'cooling')
 
-        # Gross approximation: kwh usage = 0.5 * dd.
-        cost = 0.5 * (hdd + cdd) * eprice
+        try:
+            zill = ht.get_zillow(address, ht.get_zip(address))
+        except Exception:
+            sqft = 1000.0
+            house_value = 0.0
+            value_increase = 0.0
+        else:
+            sqft = (
+                float(
+                    zill.extended_data.finished_sqft) if zill.has_extended_data
+                else 1000.0)
 
-        # Savings: Assume 365 * 5 dd for full tree coverage.
-        savings = 365 * 5 * eprice * fraction
+            house_value = float(zill.zestimate.amount)
+            value_increase = 0.1 * house_value * fraction
+
+        # Gross approximation: kwh usage = 0.5 * dd.
+        cost = 0.6 * (hdd + cdd) * eprice * sqft / 1000.0
+
+        # Savings: Assume 0.66 * 365 * 5 dd for full tree coverage.
+        # Explanation: 66% of days require either heating or cooling, trees
+        # heat/cool 5 degrees in area around them.
+        savings = 0.66 * 365 * 5 * eprice * fraction
+
+        noise_abatement = 10 * fraction
 
         return json.dumps({
             'fraction': fraction,
             'cost': cost,
-            'savings': savings
+            'savings': savings,
+            'house_value': house_value,
+            'value_increase': value_increase,
+            'noise_abatement': noise_abatement
         })
 
 
