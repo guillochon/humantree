@@ -60,7 +60,7 @@ class HumanTree(object):
         import zillow
         from shapely.geometry import Polygon
 
-        load_canopy_polys = kwargs.get('load_canopy_polys', False)
+        load_canopy_polys = kwargs.get('load_canopy_polys', True)
 
         self._dir_name = os.path.dirname(os.path.realpath(__file__))
 
@@ -214,11 +214,12 @@ class HumanTree(object):
         fpath = self.get_image(bound_poly, mlat, mlon, target_dir='queries')
         pic = misc.imread(fpath)
         with open(fpath.replace('.png', '.json'), 'w') as f:
-            json.dump(pic.tolist(), f, separators=(',',':'), indent=0)
+            json.dump(pic.tolist(), f, separators=(',', ':'), indent=0)
         return fpath
 
     def get_poly_images(self, limit=None, purge=False):
         """Retrieve images of all polygons on Google Maps."""
+        from shapely.ops import cascaded_union
         from matplotlib.patches import Polygon as MPPoly
         from matplotlib.collections import PatchCollection
         import matplotlib.pyplot as plt
@@ -243,58 +244,73 @@ class HumanTree(object):
                 continue
 
             fname = str(pi).zfill(5)
-            fpath = os.path.join(
-                self._dir_name, '..', 'parcels', fname + '-mask.png')
-            if not os.path.exists(fpath):
-                ipolys = []
-                success_count = 0
-                for cp in self._canopy_polygons:
-                    if cp.disjoint(bound_poly):
-                        continue
-                    try:
-                        ipolys.append(cp.intersection(bound_poly).buffer(
-                            self._SBUFF).buffer(self._SBUFF).buffer(
-                                self._SBUFF).buffer(self._SBUFF))
-                    except Exception as ee:
-                        print(ee)
+
+            fpaths = [os.path.join(
+                self._dir_name, '..', 'parcels', fname + '-' + suffix +
+                '.png') for suffix in ['mask', 'outline']]
+            for fpath in fpaths:
+                if not os.path.exists(fpath):
+                    ipolys = []
+                    success_count = 0
+                    for cp in self._canopy_polygons:
+                        if cp.disjoint(bound_poly):
+                            continue
+                        try:
+                            ipolys.append(cp.intersection(bound_poly).buffer(
+                                self._SBUFF).buffer(self._SBUFF).buffer(
+                                    self._SBUFF).buffer(self._SBUFF))
+                        except Exception as ee:
+                            print(ee)
+                        else:
+                            success_count += 1
+
+                    merged_polys = cascaded_union(ipolys)
+
+                    fig = plt.figure()
+                    ax = fig.gca()
+                    plt.axis('off')
+                    ax.get_xaxis().set_visible(False)
+                    ax.get_yaxis().set_visible(False)
+                    patches = [MPPoly(
+                        x.exterior.coords) for x in merged_polys if hasattr(
+                            x, 'exterior')]
+                    if 'mask' in fpath:
+                        pc = PatchCollection(
+                            patches, alpha=1, facecolors='black',
+                            edgecolors='none', antialiased=False)
                     else:
-                        success_count += 1
+                        pc = PatchCollection(
+                            patches, alpha=1, facecolors='none',
+                            edgecolors='magenta', antialiased=False,
+                            linewidth=4)
+                    ax.autoscale_view(True, True, True)
+                    plt.gray()
+                    ax.add_collection(pc)
+                    ax.set_xlim(bp[0][0], bp[1][0])
+                    ax.set_ylim(bp[0][1], bp[1][1])
+                    fig.subplots_adjust(
+                        bottom=0, left=0, top=self._SCALED_SIZE / self._DPI,
+                        right=self._SCALED_SIZE / self._DPI)
+                    fig.set_size_inches(1, 1)
+                    if 'mask' in fpath:
+                        plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
+                                    pad_inches=0)
+                    else:
+                        plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
+                                    pad_inches=0, transparent=True)
+                    plt.close()
 
-                fig = plt.figure()
-                ax = fig.gca()
-                plt.axis('off')
-                ax.get_xaxis().set_visible(False)
-                ax.get_yaxis().set_visible(False)
-                patches = [MPPoly(
-                    x.exterior.coords) for x in ipolys if hasattr(
-                        x, 'exterior')]
-                pc = PatchCollection(
-                    patches, alpha=1, facecolors='black', edgecolors=None,
-                    antialiased=False)
-                ax.autoscale_view(True, True, True)
-                plt.gray()
-                ax.add_collection(pc)
-                ax.set_xlim(bp[0][0], bp[1][0])
-                ax.set_ylim(bp[0][1], bp[1][1])
-                fig.subplots_adjust(
-                    bottom=0, left=0, top=self._SCALED_SIZE / self._DPI,
-                    right=self._SCALED_SIZE / self._DPI)
-                fig.set_size_inches(1, 1)
-                plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
-                            pad_inches=0)
-                plt.close()
-
-                # If image is wrong size
-                pic = misc.imread(fpath)
-                shape = pic.shape
-                if (shape[0] != self._SCALED_SIZE or
-                        shape[1] != self._SCALED_SIZE):
-                    dx = (shape[0] - self._SCALED_SIZE) / 2.0
-                    dy = (shape[1] - self._SCALED_SIZE) / 2.0
-                    dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
-                    dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
-                    npic = pic[dxm:-dxp, dym:-dyp]
-                    misc.imsave(fpath, npic)
+                    # If image is wrong size
+                    pic = misc.imread(fpath)
+                    shape = pic.shape
+                    if (shape[0] != self._SCALED_SIZE or
+                            shape[1] != self._SCALED_SIZE):
+                        dx = (shape[0] - self._SCALED_SIZE) / 2.0
+                        dy = (shape[1] - self._SCALED_SIZE) / 2.0
+                        dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
+                        dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
+                        npic = pic[dxm:-dxp, dym:-dyp]
+                        misc.imsave(fpath, npic)
 
             self.get_image(bound_poly, mlat, mlon, fname=fname)
 
@@ -387,7 +403,8 @@ class HumanTree(object):
         """Return image and mask for training image segmentation."""
         parcel_paths = list(sorted([
             x for x in glob(os.path.join(
-                'parcels', '*.png')) if 'mask' not in x]))
+                'parcels', '*.png')) if (
+                    'mask' not in x and 'outline' not in x)]))
         mask_paths = list(sorted(glob(os.path.join('parcels', '*-mask.png'))))
 
         images = []
@@ -510,7 +527,7 @@ class HumanTree(object):
         self.prepare_data()
 
         with open(os.path.join(self._dir_name, '..', 'meta.json'), 'w') as f:
-            json.dump([self._imgs_mean, self._imgs_std], f)
+            json.dump([float(self._imgs_mean), float(self._imgs_std)], f)
 
         self.notice('Creating and compiling model...')
         model = self.get_unet()

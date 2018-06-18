@@ -1,12 +1,27 @@
 """Basic Flask server for HumanTree.org."""
 import os
+import json
 
 import numpy as np
 
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template, send_from_directory, request
 from humantree import HumanTree
 
 app = Flask(__name__)
+
+# Define some globals here.
+with open('../recaptcha.key', 'r') as f:
+    secret = f.readline()
+
+votes_path = os.path.join('..', 'votes.json')
+
+if os.path.isfile(votes_path):
+    with open(votes_path, 'r') as f:
+        votes = json.load(f)
+else:
+    votes = {}
+
+ips = {}
 
 
 @app.route('/')
@@ -15,13 +30,51 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/help')
+@app.route('/help', methods=['GET', 'POST'])
 def help():
     """Return the help us page."""
+    import requests
+    import time
     from glob import glob
+
+    """Process captcha."""
+    ip = request.remote_addr
+    captcha = (time.time() - ips.get(ip, 0.0)) > 86400.
+
+    response = None
+    success = True
+    if request.method == 'POST':
+        if captcha:
+            response = request.form.get('g-recaptcha-response')
+            if response is not None:
+                r = requests.post(
+                    'https://www.google.com/recaptcha/api/siteverify', data={
+                        'secret': secret,
+                        'response': response,
+                        'remoteip': ip
+                    })
+                resp = r.json()
+                success = True if resp.get('success') else False
+        id = request.form.get('mask-num')
+
+        if success and id:
+            if captcha:
+                ips[ip] = time.time()
+            if id not in votes:
+                votes[id] = {'good': 0, 'bad': 0}
+            if 'good' in request.form:
+                votes[id]['good'] += 1
+            else:
+                votes[id]['bad'] += 1
+            with open(votes_path, 'w') as f:
+                json.dump(votes, f)
+
+    captcha = ip not in ips
+
     ids = ','.join(sorted([x.split('/')[
         -1].split('-')[0] for x in glob('parcels/*-mask.png')]))
-    return render_template('help.html', ids=ids)
+    return render_template(
+        'help.html', ids=ids, captcha=captcha, success=success)
 
 
 @app.route('/about')
@@ -38,12 +91,9 @@ def method():
 
 @app.route('/process', methods=['GET', 'POST'])
 def process():
-    """Process request."""
-    from flask import request
-
+    """Process an address."""
     global ht
 
-    """Process an address."""
     if request.method == 'POST':
         address = request.form.get('address')
         print(address)
@@ -53,12 +103,8 @@ def process():
 @app.route('/metrics', methods=['GET', 'POST'])
 def metrics():
     """Return metrics."""
-    from flask import request
-    import json
-
     global ht
 
-    """Process an address."""
     if request.method == 'POST':
         image = request.form.get('image')
         address = request.form.get('address')
@@ -121,6 +167,7 @@ def send_file(path):
 
 
 def before_request():
+    """Clear cache when HTML changes."""
     app.jinja_env.cache = {}
 
 
