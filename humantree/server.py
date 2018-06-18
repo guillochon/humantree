@@ -15,6 +15,27 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/help')
+def help():
+    """Return the help us page."""
+    from glob import glob
+    ids = ','.join(sorted([x.split('/')[
+        -1].split('-')[0] for x in glob('parcels/*-mask.png')]))
+    return render_template('help.html', ids=ids)
+
+
+@app.route('/about')
+def about():
+    """Return the about page."""
+    return render_template('about.html')
+
+
+@app.route('/method')
+def method():
+    """Return the method page."""
+    return render_template('method.html')
+
+
 @app.route('/process', methods=['GET', 'POST'])
 def process():
     """Process request."""
@@ -99,6 +120,11 @@ def send_file(path):
     return send_from_directory('', path)
 
 
+def before_request():
+    app.jinja_env.cache = {}
+
+
 ht = HumanTree(load_canopy_polys=False)
 if __name__ == '__main__':
+    app.before_request(before_request)
     app.run_server(debug=True)

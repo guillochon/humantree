@@ -1,56 +1,46 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.6"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
-    <script src="{{ url_for('static', filename='predict.js') }}"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  </head>
-  <body>
-    <div class="page">
-      <h1>HumanTree</h1>
-      <div class=metanav>
-        <a href="method.html">method</a> | <a href="about.html">about</a>
-      </div>
-      {% for message in get_flashed_messages() %}
-        <div class=flash>{{ message }}</div>
-      {% endfor %}
-      <form action="process" id="process" method="post">
-        <p><input type="text" class="address" id="address" name="address" placeholder="Enter your street address"></input></p>
-        <p><button type="submit" class="btn" id="btn" disabled>Analyze trees on property</button>
-      </form>
-      <div id="loader" class="cssload-container">
-        <div id="cssload-loader">
-        	<div class="cssload-diamond"></div>
-        	<div class="cssload-diamond"></div>
-        	<div class="cssload-diamond"></div>
-        </div>
-        Loading model...
-      </div>
-      <div id="analyzer" class="cssload-container" style="display: none">
-        <div class="cssload-thecube">
-        	<div class="cssload-cube cssload-c1"></div>
-        	<div class="cssload-cube cssload-c2"></div>
-        	<div class="cssload-cube cssload-c4"></div>
-        	<div class="cssload-cube cssload-c3"></div>
-        </div>
-        Analyzing...
-      </div>
-      <div id="images" class="images"><img id="satellite"><img id="predict"></div>
-      <div id="metrizer" class="cssload-container" style="display: none">
-        <div id="spinningSquaresG">
-        	<div id="spinningSquaresG_1" class="spinningSquaresG"></div>
-        	<div id="spinningSquaresG_2" class="spinningSquaresG"></div>
-        	<div id="spinningSquaresG_3" class="spinningSquaresG"></div>
-        	<div id="spinningSquaresG_4" class="spinningSquaresG"></div>
-        	<div id="spinningSquaresG_5" class="spinningSquaresG"></div>
-        	<div id="spinningSquaresG_6" class="spinningSquaresG"></div>
-        	<div id="spinningSquaresG_7" class="spinningSquaresG"></div>
-        	<div id="spinningSquaresG_8" class="spinningSquaresG"></div>
-        </div>
-        Computing metrics...
-      </div>
-      <div id="metrics" class="metrics"><div>
-    </div>
-  </body>
-</html>
+{% extends 'base.html' %}
+
+{% block header %}
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.6"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+<script src="{{ url_for('static', filename='predict.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<form action="process" id="process" method="post">
+  <p class="centered"><input type="text" class="address" id="address" name="address" placeholder="Enter your street address"></input></p>
+  <p class="centered"><button type="submit" class="btn" id="btn" disabled>Analyze trees on property</button>
+</form>
+<div id="loader" class="cssload-container">
+  <div id="cssload-loader">
+  	<div class="cssload-diamond"></div>
+  	<div class="cssload-diamond"></div>
+  	<div class="cssload-diamond"></div>
+  </div>
+  Loading model...
+</div>
+<div id="analyzer" class="cssload-container" style="display: none">
+  <div class="cssload-thecube">
+  	<div class="cssload-cube cssload-c1"></div>
+  	<div class="cssload-cube cssload-c2"></div>
+  	<div class="cssload-cube cssload-c4"></div>
+  	<div class="cssload-cube cssload-c3"></div>
+  </div>
+  Analyzing...
+</div>
+<div id="images" class="images"><img id="satellite"><img id="predict"></div>
+<div id="metrizer" class="cssload-container" style="display: none">
+  <div id="spinningSquaresG">
+  	<div id="spinningSquaresG_1" class="spinningSquaresG"></div>
+  	<div id="spinningSquaresG_2" class="spinningSquaresG"></div>
+  	<div id="spinningSquaresG_3" class="spinningSquaresG"></div>
+  	<div id="spinningSquaresG_4" class="spinningSquaresG"></div>
+  	<div id="spinningSquaresG_5" class="spinningSquaresG"></div>
+  	<div id="spinningSquaresG_6" class="spinningSquaresG"></div>
+  	<div id="spinningSquaresG_7" class="spinningSquaresG"></div>
+  	<div id="spinningSquaresG_8" class="spinningSquaresG"></div>
+  </div>
+  Computing metrics...
+</div>
+<div id="metrics" class="metrics"><div>
+{% endblock %}
