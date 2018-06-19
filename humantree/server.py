@@ -1,6 +1,7 @@
 """Basic Flask server for HumanTree.org."""
 import os
 import json
+import logging
 
 import numpy as np
 
@@ -23,6 +24,9 @@ else:
 
 ips = {}
 
+logger = logging.getLogger('gunicorn.error')
+logger.setLevel(logging.INFO)
+
 
 @app.route('/')
 def index():
@@ -38,7 +42,11 @@ def help():
     from glob import glob
 
     """Process captcha."""
-    ip = request.remote_addr
+    if request.headers.getlist("X-Forwarded-For"):
+        ip = request.headers.getlist("X-Forwarded-For")[0]
+    else:
+        ip = request.remote_addr
+    logger.info('IP: {}'.format(ip))
     captcha = (time.time() - ips.get(ip, 0.0)) > 86400.
 
     response = None

@@ -26,17 +26,14 @@ function insertSrcs() {
   load_time = Date.now();
   setTimeout(
     function() {
-      enableBtn(true);
-  }, 3000);
+      enableBtn();
+  }, 1500);
 }
 
-function enableBtn(ignore_time) {
-  ignore_time = ignore_time || false;
-  if (!ignore_time && Date.now() - load_time > 3000000) {
-    document.getElementById('good').disabled = false;
-    document.getElementById('okay').disabled = false;
-    document.getElementById('bad').disabled = false;
-  }
+function enableBtn() {
+  document.getElementById('good').disabled = false;
+  document.getElementById('okay').disabled = false;
+  document.getElementById('bad').disabled = false;
 }
 
 function disableBtn() {
