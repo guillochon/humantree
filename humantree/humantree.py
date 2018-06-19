@@ -20,27 +20,49 @@ class HumanTree(object):
     """Count trees, make suggestions where new trees should be added."""
 
     _TO_RAD = np.pi / 180
-
     _PARCELS_URL = (
         "https://raw.githubusercontent.com/cambridgegis/cambridgegis_data"
         "/master/Assessing/FY2018/FY2018_Parcels/"
         "ASSESSING_ParcelsFY2018.geojson")
-
     _TREE_CANOPY_URL = (
         "https://raw.githubusercontent.com/cambridgegis/cambridgegis_data/"
         "master/Environmental/Tree_Canopy_2014/"
         "ENVIRONMENTAL_TreeCanopy2014.topojson")
-
+    _PATTERN = (
+        "https://maps.googleapis.com/maps/api/staticmap?"
+        "center={},{}&zoom={}&maptype=satellite&size={}x{}"
+        "&key={}")
     _LAT_OFFSET = 2.e-5  # The LIDAR data is slightly offset from the images.
-
     _SMOOTH = 1.0
-
     _SCALED_SIZE = 512
+    _ZOOM = 20
+    _IMGSIZE = 640
+    _CROPPIX = 20
+    _DPI = 100.0
+    _SBUFF = 2.e-6  # buffer size for smoothing tree regions
+    _POINT_BUFF = 2.e-5
+    _REGIONS = {
+        'ENC': ['IL', 'IN', 'MI', 'OH', 'WI'],
+        'WNC': ['IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD'],
+        'PAC': ['CA', 'OR', 'WA', 'AK'],
+        'MTN': ['AZ', 'CO', 'ID', 'MT', 'NV', 'NM', 'UT', 'WY'],
+        'NEC': ['CT', 'ME', 'MA', 'NH', 'RI', 'VT'],
+        'MAC': ['NY', 'NJ', 'PE', 'WV'],
+        'SAC': ['MD', 'DE', 'DC', 'WV', 'VA', 'NC', 'SC', 'GA', 'FL'],
+        'ESC': ['KY', 'TN', 'MS', 'AL'],
+        'WSC': ['TX', 'OK', 'AR', 'LA']
+    }
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """Initialize, loading data."""
+        import eia
         import googlemaps
+        import zillow
         from shapely.geometry import Polygon
+
+        load_canopy_polys = kwargs.get('load_canopy_polys', True)
+
+        self._dir_name = os.path.dirname(os.path.realpath(__file__))
 
         # Load parcel data.
         self._parcels_fname = self.download_file(self._PARCELS_URL)
@@ -58,8 +80,26 @@ class HumanTree(object):
         self._parcel_polygons = [[Polygon(y) for y in x if len(y) >= 3]
                                  for x in self._parcel_polygons]
 
+        with open(os.path.join(self._dir_name, '..', 'google.key'), 'r') as f:
+            self._google_key = f.readline().strip()
+        self._google_client = googlemaps.Client(key=self._google_key)
+
+        with open(os.path.join(self._dir_name, '..', 'eia.key'), 'r') as f:
+            self._eia_key = f.readline().strip()
+        self._eia_client = eia.API(self._eia_key)
+
+        with open(os.path.join(self._dir_name, '..', 'zillow.key'), 'r') as f:
+            self._zillow_key = f.readline().strip()
+        self._zillow_client = zillow.ValuationApi()
+
+        self._cropsize = self._IMGSIZE - 2 * self._CROPPIX
+
         # Load canopy data.
-        self._canopy_fname = 'ENVIRONMENTAL_TreeCanopy2014.json'
+        if not load_canopy_polys:
+            return
+
+        self._canopy_fname = os.path.join(
+            self._dir_name, '..', 'geo', 'ENVIRONMENTAL_TreeCanopy2014.json')
         with open(self._canopy_fname, 'r') as f:
             self._canopies = json.load(f)
 
@@ -82,11 +122,6 @@ class HumanTree(object):
                 list(x.geoms) if 'multi' in str(type(
                     x)).lower() else [x] for x in cps] for a in b])
 
-        with open('google.key', 'r') as f:
-            self._google_key = f.readline().strip()
-
-        self._client = googlemaps.Client(key=self._google_key)
-
     def download_file(self, url, fname=None):
         """Download file if it doesn't exist locally."""
         if fname is None:
@@ -108,8 +143,11 @@ class HumanTree(object):
         from shapely.geometry import Point
 
         lon, lat = self.get_coordinates(address)
+        if lon is None or lat is None:
+            return None, None
         pt = Point(lon, lat)
 
+        result = None
         for polys in self._parcel_polygons:
             for poly in polys:
                 if poly.contains(pt):
@@ -117,27 +155,81 @@ class HumanTree(object):
                     result = poly
                     break
 
-        return result
+        return result, pt
+
+    def get_bound_poly(self, poly):
+        """Get bounding polygon for property."""
+        from shapely.geometry import Polygon
+
+        mlon, mlat = poly.centroid.coords[0]
+        min_lon, min_lat, max_lon, max_lat = poly.bounds
+        bp = self.get_static_map_bounds(
+            mlat, mlon, self._ZOOM, self._cropsize, self._cropsize)
+
+        return Polygon([
+            bp[0], [bp[0][0], bp[1][1]], bp[1], [
+                bp[1][0], bp[0][1]]]), mlat, mlon, bp
+
+    def get_image(
+        self, poly, mlat, mlon, zoom=None, imgsize=None, fname=None,
+            target_dir=None):
+        """Get satellite image from polygon boundaries."""
+        import uuid
+
+        zoom = self._ZOOM if zoom is None else zoom
+        imgsize = self._IMGSIZE if imgsize is None else imgsize
+        target_dir = 'parcels' if target_dir is None else target_dir
+
+        if fname is None:
+            fname = str(uuid.uuid4())
+
+        tdir = os.path.join(self._dir_name, '..', target_dir)
+        if not os.path.isdir(tdir):
+            os.mkdir(tdir)
+        fpath = os.path.join(self._dir_name, '..', tdir, fname + '.png')
+        process_image = False if os.path.exists(fpath) else True
+        query_url = self._PATTERN.format(
+            mlat, mlon, zoom, imgsize, imgsize,
+            self._google_key)
+        self.download_file(query_url, fname=fpath)
+        if process_image:
+            pic = misc.imread(fpath)
+            npic = pic[self._CROPPIX:-self._CROPPIX,
+                       self._CROPPIX:-self._CROPPIX]
+            npic = resize(
+                npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
+                preserve_range=False, mode='constant')
+            misc.imsave(fpath, npic)
+
+        return fpath
+
+    def get_image_from_address(self, address):
+        """Get an image from an address."""
+        if not address:
+            raise ValueError('Invalid address `{}`!'.format(address))
+
+        poly, pt = self.find_poly(address)
+        if pt is None:
+            return None
+        if poly is None:
+            poly = pt.buffer(self._POINT_BUFF)
+        print(poly.exterior.coords, pt.coords)
+        bound_poly, mlat, mlon, __ = self.get_bound_poly(poly)
+        fpath = self.get_image(bound_poly, mlat, mlon, target_dir='queries')
+        pic = misc.imread(fpath)
+        with open(fpath.replace('.png', '.json'), 'w') as f:
+            json.dump(pic.tolist(), f, separators=(',', ':'), indent=0)
+        return fpath
 
     def get_poly_images(self, limit=None, purge=False):
         """Retrieve images of all polygons on Google Maps."""
-        from shapely.geometry import Polygon
+        from shapely.ops import cascaded_union
         from matplotlib.patches import Polygon as MPPoly
         from matplotlib.collections import PatchCollection
         import matplotlib.pyplot as plt
         plt.switch_backend('agg')
 
-        zoom = 20
-        imgsize = 640
-        croppix = 20
-        dpi = 100.0
-        sbuff = 2.e-6  # buffer size for smoothing tree regions
-        self._cropsize = imgsize - 2 * croppix
         # rearth = 6371000.0
-        pattern = (
-            "https://maps.googleapis.com/maps/api/staticmap?"
-            "center={},{}&zoom={}&maptype=satellite&size={}x{}"
-            "&key={}")
         if not os.path.isdir('parcels'):
             os.mkdir('parcels')
         if purge:
@@ -150,89 +242,144 @@ class HumanTree(object):
             if limit is not None and pi >= limit:
                 break
             poly = polys[0]
-            mlon, mlat = poly.centroid.coords[0]
-            min_lon, min_lat, max_lon, max_lat = poly.bounds
-            bp = self.get_static_map_bounds(
-                mlat, mlon, zoom, self._cropsize, self._cropsize)
-
-            bound_poly = Polygon([
-                bp[0], [bp[0][0], bp[1][1]], bp[1], [bp[1][0], bp[0][1]]])
+            bound_poly, mlat, mlon, bp = self.get_bound_poly(poly)
             if not bound_poly.contains(poly):
                 lots_skipped += 1
                 continue
 
             fname = str(pi).zfill(5)
-            fpath = os.path.join('parcels', fname + '-mask.png')
-            if not os.path.exists(fpath):
-                ipolys = []
-                success_count = 0
-                for cp in self._canopy_polygons:
-                    if cp.disjoint(bound_poly):
-                        continue
-                    try:
-                        ipolys.append(cp.intersection(bound_poly).buffer(
-                            sbuff).buffer(sbuff).buffer(sbuff).buffer(sbuff))
-                    except Exception as ee:
-                        print(ee)
+
+            fpaths = [os.path.join(
+                self._dir_name, '..', 'parcels', fname + '-' + suffix +
+                '.png') for suffix in ['mask', 'outline']]
+            for fpath in fpaths:
+                if not os.path.exists(fpath):
+                    ipolys = []
+                    success_count = 0
+                    for cp in self._canopy_polygons:
+                        if cp.disjoint(bound_poly):
+                            continue
+                        try:
+                            ipolys.append(cp.intersection(bound_poly).buffer(
+                                self._SBUFF).buffer(self._SBUFF).buffer(
+                                    self._SBUFF).buffer(self._SBUFF))
+                        except Exception as ee:
+                            print(ee)
+                        else:
+                            success_count += 1
+
+                    merged_polys = cascaded_union(ipolys)
+
+                    if 'Multi' not in str(type(merged_polys)):
+                        merged_polys = [merged_polys]
+
+                    fig = plt.figure()
+                    ax = fig.gca()
+                    plt.axis('off')
+                    ax.get_xaxis().set_visible(False)
+                    ax.get_yaxis().set_visible(False)
+                    patches = [MPPoly(
+                        x.exterior.coords) for x in merged_polys if hasattr(
+                            x, 'exterior')]
+                    if 'mask' in fpath:
+                        pc = PatchCollection(
+                            patches, alpha=1, facecolors='black',
+                            edgecolors='none', antialiased=False)
+                        plt.gray()
                     else:
-                        success_count += 1
+                        pc = PatchCollection(
+                            patches, facecolors=(1, 0, 1, 0.2),
+                            edgecolors='magenta', antialiased=True,
+                            linewidth=4)
+                    ax.autoscale_view(True, True, True)
+                    ax.add_collection(pc)
+                    ax.set_xlim(bp[0][0], bp[1][0])
+                    ax.set_ylim(bp[0][1], bp[1][1])
+                    fig.subplots_adjust(
+                        bottom=0, left=0, top=self._SCALED_SIZE / self._DPI,
+                        right=self._SCALED_SIZE / self._DPI)
+                    fig.set_size_inches(1, 1)
+                    if 'mask' in fpath:
+                        plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
+                                    pad_inches=0)
+                    else:
+                        plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
+                                    pad_inches=0, transparent=True)
+                    plt.close()
 
-                fig = plt.figure()
-                ax = fig.gca()
-                plt.axis('off')
-                ax.get_xaxis().set_visible(False)
-                ax.get_yaxis().set_visible(False)
-                patches = [MPPoly(
-                    x.exterior.coords) for x in ipolys if hasattr(
-                        x, 'exterior')]
-                pc = PatchCollection(
-                    patches, alpha=1, facecolors='black', edgecolors=None,
-                    antialiased=False)
-                ax.autoscale_view(True, True, True)
-                plt.gray()
-                ax.add_collection(pc)
-                ax.set_xlim(bp[0][0], bp[1][0])
-                ax.set_ylim(bp[0][1], bp[1][1])
-                fig.subplots_adjust(
-                    bottom=0, left=0, top=self._SCALED_SIZE / dpi,
-                    right=self._SCALED_SIZE / dpi)
-                fig.set_size_inches(1, 1)
-                plt.savefig(fpath, bbox_inches='tight', dpi=dpi, pad_inches=0)
-                plt.close()
+                    # If image is wrong size
+                    pic = misc.imread(fpath)
+                    shape = pic.shape
+                    if (shape[0] != self._SCALED_SIZE or
+                            shape[1] != self._SCALED_SIZE):
+                        dx = (shape[0] - self._SCALED_SIZE) / 2.0
+                        dy = (shape[1] - self._SCALED_SIZE) / 2.0
+                        dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
+                        dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
+                        npic = pic[dxm:-dxp, dym:-dyp]
+                        misc.imsave(fpath, npic)
 
-                # If image is wrong size
-                pic = misc.imread(fpath)
-                shape = pic.shape
-                if (shape[0] != self._SCALED_SIZE or
-                        shape[1] != self._SCALED_SIZE):
-                    dx = (shape[0] - self._SCALED_SIZE) / 2.0
-                    dy = (shape[1] - self._SCALED_SIZE) / 2.0
-                    dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
-                    dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
-                    npic = pic[dxm:-dxp, dym:-dyp]
-                    misc.imsave(fpath, npic)
-
-            fpath = os.path.join('parcels', fname + '.png')
-            process_image = False if os.path.exists(fpath) else True
-            query_url = pattern.format(
-                mlat, mlon, zoom, imgsize, imgsize, self._google_key)
-            self.download_file(query_url, fname=fpath)
-            if process_image:
-                pic = misc.imread(fpath)
-                npic = pic[croppix:-croppix, croppix:-croppix]
-                npic = resize(
-                    npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
-                    preserve_range=False, mode='constant')
-                misc.imsave(fpath, npic)
+            self.get_image(bound_poly, mlat, mlon, fname=fname)
 
             self._train_count += 1
 
         print('Training on {} lots, skipped {} because they were '
               'too large.'.format(self._train_count, lots_skipped))
 
+    def get_state(self, address):
+        """Get lat/lon from address using Geocode API."""
+        result = self._google_client.geocode(address)
+
+        acs = result[0].get('address_components', {})
+        state = [x for x in acs if 'administrative_area_level_1' in x.get(
+            'types')][0].get('short_name')
+
+        return state
+
+    def get_zip(self, address):
+        """Get zip from address using Geocode API."""
+        result = self._google_client.geocode(address)
+
+        acs = result[0].get('address_components', {})
+        pc = [x for x in acs if 'postal_code' in x.get(
+            'types')][0].get('short_name')
+
+        return pc
+
+    def get_electricity_price(self, state):
+        """Get price of electricity per kwh."""
+        series = 'ELEC.PRICE.{}-ALL.M'.format(state)
+        result = self._eia_client.data_by_series(series)
+
+        result = [(int(k.replace(' ', '')), v) for k, v in result[
+            list(result.keys())[0]].items()]
+        result = sorted(result)[-1][1]
+        return result
+
+    def get_degree_days(self, state, type='cooling'):
+        """Get degree days for a given state."""
+        region = [k for k, v in self._REGIONS.items() if state in v][0]
+
+        series = 'STEO.ZW{}D_{}.A'.format(
+            'C' if type == 'cooling' else 'H', region)
+        result = self._eia_client.data_by_series(series)
+
+        result = [(int(k.replace(' ', '')), v) for k, v in result[
+            list(result.keys())[0]].items()]
+        result = sorted(result)[-1][1]
+        return result
+
+    def get_zillow(self, address, postal_code):
+        """Get square feet of a property."""
+        return self._zillow_client.GetDeepSearchResults(
+            self._zillow_key, address, postal_code, True)
+
     def get_coordinates(self, address):
         """Get lat/lon from address using Geocode API."""
-        result = self._client.geocode(address)
+        result = self._google_client.geocode(address)
+
+        if not len(result) or 'geometry' not in result[0]:
+            return (None, None)
 
         location = result[0].get('geometry', {}).get('location', {})
 
@@ -266,7 +413,9 @@ class HumanTree(object):
         """Return image and mask for training image segmentation."""
         parcel_paths = list(sorted([
             x for x in glob(os.path.join(
-                'parcels', '*.png')) if 'mask' not in x]))
+                'parcels', '*.png')) if (
+                    'mask' not in x and 'outline' not in x and
+                    'pred' not in x)]))
         mask_paths = list(sorted(glob(os.path.join('parcels', '*-mask.png'))))
 
         images = []
@@ -276,7 +425,7 @@ class HumanTree(object):
         max_i = int(np.floor(fractions[1] * self._train_count))
         indices = list(range(min_i, max_i))
         pids = []
-        for i in indices:
+        for i in tqdm(indices, desc='Reading images into arrays'):
             image = misc.imread(parcel_paths[i])[:, :, :3]
             images.append(image)
             mask = misc.imread(mask_paths[i])[:, :, [0]]
@@ -390,7 +539,6 @@ class HumanTree(object):
 
     def train(self):
         """Train DNN for image segmentation."""
-        import pickle
         from keras import backend as K
         from keras.callbacks import ModelCheckpoint, TensorBoard
 
@@ -398,8 +546,8 @@ class HumanTree(object):
 
         self.prepare_data()
 
-        with open('meta.pkl', 'wb') as f:
-            pickle.dump([self._imgs_mean, self._imgs_std], f)
+        with open(os.path.join(self._dir_name, '..', 'meta.json'), 'w') as f:
+            json.dump([float(self._imgs_mean), float(self._imgs_std)], f)
 
         self.notice('Creating and compiling model...')
         model = self.get_unet()
