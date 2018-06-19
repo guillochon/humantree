@@ -5,14 +5,23 @@
 <meta property="ids" content="{{ ids }}" />
 {% endblock %}
 {% block content %}
-<p class="centered">
-<img class="validate-image" id="satellite"><img class="validate-image" id="mask">
-</p>
+<div class="imwrap">
+  <div class="imagemask">
+    <img class="validate-image" id="satellite"><img class="validate-mask" id="mask">
+  </div>
+</div>
 <form action="help" id="help" method="post">
   <input type="hidden" name="mask-num" id="mask-num">
   <p class="centered">
-    <button type="submit" class="btn good" name="good" id="good" {% if captcha %} disabled {% endif %}>This mask looks good</button>
-    <button type="submit" class="btn-red bad" name="bad" id="bad" {% if captcha %} disabled {% endif %}>This mask looks bad</button>
+    This mask looks:
+    <button type="submit" class="btn good" name="good" id="good" {% if captcha %} disabled {% endif %}>G&#818;ood</button>
+    <button type="submit" class="btn-yellow good" name="okay" id="okay" {% if captcha %} disabled {% endif %}>O&#818;kay</button>
+    <button type="submit" class="btn-red bad" name="bad" id="bad" {% if captcha %} disabled {% endif %}>B&#818;ad</button>
+    <div class="showmask">
+      <div class="switch_box box_1">
+        <input type="checkbox" class="switch_1" id="maskcheck" checked onclick="toggleMask()"><label>Show mask</label>
+      </div>
+    </div>
     <div class="error" {% if success %} style="display:none" {% endif %}>Captcha not valid!</div>
   </p>
   {% if captcha %}

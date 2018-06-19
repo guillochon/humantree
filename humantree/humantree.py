@@ -266,6 +266,9 @@ class HumanTree(object):
 
                     merged_polys = cascaded_union(ipolys)
 
+                    if 'Multi' not in str(type(merged_polys)):
+                        merged_polys = [merged_polys]
+
                     fig = plt.figure()
                     ax = fig.gca()
                     plt.axis('off')
@@ -278,13 +281,13 @@ class HumanTree(object):
                         pc = PatchCollection(
                             patches, alpha=1, facecolors='black',
                             edgecolors='none', antialiased=False)
+                        plt.gray()
                     else:
                         pc = PatchCollection(
-                            patches, alpha=1, facecolors='none',
-                            edgecolors='magenta', antialiased=False,
+                            patches, facecolors=(1, 0, 1, 0.2),
+                            edgecolors='magenta', antialiased=True,
                             linewidth=4)
                     ax.autoscale_view(True, True, True)
-                    plt.gray()
                     ax.add_collection(pc)
                     ax.set_xlim(bp[0][0], bp[1][0])
                     ax.set_ylim(bp[0][1], bp[1][1])

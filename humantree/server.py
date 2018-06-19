@@ -61,9 +61,11 @@ def help():
             if captcha:
                 ips[ip] = time.time()
             if id not in votes:
-                votes[id] = {'good': 0, 'bad': 0}
+                votes[id] = {'good': 0, 'okay': 0, 'bad': 0}
             if 'good' in request.form:
                 votes[id]['good'] += 1
+            elif 'okay' in request.form:
+                votes[id]['okay'] += 1
             else:
                 votes[id]['bad'] += 1
             with open(votes_path, 'w') as f:
@@ -72,7 +74,7 @@ def help():
     captcha = ip not in ips
 
     ids = ','.join(sorted([x.split('/')[
-        -1].split('-')[0] for x in glob('parcels/*-mask.png')]))
+        -1].split('-')[0] for x in glob('parcels/*-outline.png')]))
     return render_template(
         'help.html', ids=ids, captcha=captcha, success=success)
 
