@@ -7,3 +7,4 @@ matplotlib
 googlemaps
 shapely
 EIA_python
+python-zillow
