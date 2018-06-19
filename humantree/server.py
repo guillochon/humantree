@@ -31,7 +31,7 @@ logger.setLevel(logging.INFO)
 @app.route('/')
 def index():
     """Return the index page."""
-    return render_template('index.html')
+    return render_template('index.html', places_api_key=ht._google_key)
 
 
 @app.route('/help', methods=['GET', 'POST'])

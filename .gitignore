@@ -117,3 +117,4 @@ assets/
 queries/
 logs*/
 parcels/
+*.swp
