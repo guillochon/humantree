@@ -32,17 +32,17 @@
   {% endif %}
 </form>
 
-<p>Our training set is based upon the Cambridge GIS (collected in 2014) and present-day (~2018) Google Maps imagery, which means that there are mismatches between regions marked as tree/not tree as individual trees have either been added or removed in the past 4 years. Additionally, the original training set itself has some malformed masks that need to be identified.</p>
+<p>Our training set is based upon the <a href="http://cambridgegis.github.io/gisdata.html">Cambridge GIS</a> (collected in 2014 with LIDAR) and present-day (~2018) <a href="https://maps.google.com">Google Maps</a> imagery, which means that there are mismatches between regions marked as tree/not tree as individual trees have either been added or removed in the past 4 years. Additionally, the original training set itself has some malformed masks that need to be identified.</p>
 
-<p>On this page, you can help us improve the data we train upon! Above you should see a satellite image overlaid with a magenta mask for that image marking the tree locations. We would like you to rate each mask as being either "good," "okay," or "bad."</p>
+<p>On this page, you can help us improve the data we train upon! Above you should see a satellite image overlaid with a <span style="color: #f0f">magenta</span> mask for that image marking the tree locations. We would like you to rate each mask as being either <span class="good-txt">good</span>, <span class="okay-txt">okay</span>, or <span class="bad-txt">bad</span>.</p>
 
 <p>There is of course some subjectivity in this assessment, but the following rubrick should give some sense of what "good," "okay," and "bad" correspond to:</p>
 
 <ul>
-  <li>Good: &gt;90% of image area accurately labeled as tree/not tree.
-  <li>Okay: 70 - 90% of image area accurately labeled.
-  <li>Bad: &lt;70% of image area accurately labeled.
+  <li><span class="good-txt">Good</span>: &gt;90% of image area accurately labeled as tree/not tree.
+  <li><span class="okay-txt">Okay</span>: 70 - 90% of image area accurately labeled.
+  <li><span class="bad-txt">Bad</span>: &lt;70% of image area accurately labeled.
 </ul>
 
-<p>Clicking one of the buttons above should reload this page and provide a new image to assess. The captcha must be solved before assessments will be accepted.</p>
+<p>Clicking one of the buttons above should reload this page and provide a new image to assess. The captcha must be solved before assessments will be accepted, and you must spend at least 1.5 seconds examining each mask before providing your assessment (the buttons will be disabled for that period).</p>
 {% endblock %}

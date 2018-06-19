@@ -803,3 +803,15 @@ input[type="checkbox"].switch_1{
     background-color: rgb(255, 255, 255);
   }
 }
+
+.good-txt {
+  color: #00d107;
+}
+
+.okay-txt {
+  color: #b3b314;
+}
+
+.bad-txt {
+  color: #ff7373;
+}
