@@ -414,7 +414,8 @@ class HumanTree(object):
         parcel_paths = list(sorted([
             x for x in glob(os.path.join(
                 'parcels', '*.png')) if (
-                    'mask' not in x and 'outline' not in x)]))
+                    'mask' not in x and 'outline' not in x and
+                    'pred' not in x)]))
         mask_paths = list(sorted(glob(os.path.join('parcels', '*-mask.png'))))
 
         images = []
@@ -424,7 +425,7 @@ class HumanTree(object):
         max_i = int(np.floor(fractions[1] * self._train_count))
         indices = list(range(min_i, max_i))
         pids = []
-        for i in indices:
+        for i in tqdm(indices, desc='Reading images into arrays'):
             image = misc.imread(parcel_paths[i])[:, :, :3]
             images.append(image)
             mask = misc.imread(mask_paths[i])[:, :, [0]]
