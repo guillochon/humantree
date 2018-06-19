@@ -99,7 +99,10 @@ def process():
     if request.method == 'POST':
         address = request.form.get('address')
         print(address)
-        return ht.get_image_from_address(address).split('/')[-1]
+        fpath = ht.get_image_from_address(address)
+        if fpath is not None:
+            return fpath.split('/')[-1]
+        return ''
 
 
 @app.route('/metrics', methods=['GET', 'POST'])
@@ -119,20 +122,21 @@ def metrics():
         hdd = ht.get_degree_days(state, 'heating')
         cdd = ht.get_degree_days(state, 'cooling')
 
+        house_value = 0.0
+        value_increase = 0.0
         try:
             zill = ht.get_zillow(address, ht.get_zip(address))
         except Exception:
             sqft = 1000.0
-            house_value = 0.0
-            value_increase = 0.0
         else:
             sqft = (
                 float(
                     zill.extended_data.finished_sqft) if zill.has_extended_data
                 else 1000.0)
 
-            house_value = float(zill.zestimate.amount)
-            value_increase = 0.1 * house_value * fraction
+            if zill.zestimate.amount is not None:
+                house_value = float(zill.zestimate.amount)
+                value_increase = 0.1 * house_value * fraction
 
         # Gross approximation: kwh usage = 0.5 * dd.
         cost = 0.6 * (hdd + cdd) * eprice * sqft / 1000.0

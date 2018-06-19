@@ -143,6 +143,8 @@ class HumanTree(object):
         from shapely.geometry import Point
 
         lon, lat = self.get_coordinates(address)
+        if lon is None or lat is None:
+            return None, None
         pt = Point(lon, lat)
 
         result = None
@@ -207,6 +209,8 @@ class HumanTree(object):
             raise ValueError('Invalid address `{}`!'.format(address))
 
         poly, pt = self.find_poly(address)
+        if pt is None:
+            return None
         if poly is None:
             poly = pt.buffer(self._POINT_BUFF)
         print(poly.exterior.coords, pt.coords)
@@ -373,6 +377,9 @@ class HumanTree(object):
     def get_coordinates(self, address):
         """Get lat/lon from address using Geocode API."""
         result = self._google_client.geocode(address)
+
+        if not len(result) or 'geometry' not in result[0]:
+            return (None, None)
 
         location = result[0].get('geometry', {}).get('location', {})
 

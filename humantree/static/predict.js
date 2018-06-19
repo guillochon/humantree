@@ -111,6 +111,13 @@ function metrics(image) {
 }
 
 function handleProcess(response) {
+  console.log(response);
+  if (response == '') {
+    document.getElementById('invalid-address').style.display = 'block'
+    document.getElementById('analyzer').style.display = "none"
+    document.getElementById('metrizer').style.display = "none"
+    return;
+  }
   var sat = $("#satellite");
   sat.attr("src", "queries/" + response);
   sat.width(width / 2);
@@ -141,6 +148,7 @@ $(function() {
   $('#process').submit(function(e) {
     e.preventDefault(); // prevent the form from 'submitting'
     address = document.getElementById('address').value
+    document.getElementById('invalid-address').style.display = 'none'
     document.getElementById('analyzer').style.display = "block"
     document.getElementById('images').style.display = "none"
     document.getElementById('metrics').style.display = "none"
