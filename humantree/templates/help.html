@@ -12,14 +12,14 @@
 </div>
 <form action="help" id="help" method="post">
   <input type="hidden" name="mask-num" id="mask-num">
-  <p class="centered">
+  <p class="centered" id="assess">
     This mask looks:
     <button type="submit" class="btn good" name="good" id="good" {% if captcha %} disabled {% endif %}>G&#818;ood</button>
     <button type="submit" class="btn-yellow good" name="okay" id="okay" {% if captcha %} disabled {% endif %}>O&#818;kay</button>
     <button type="submit" class="btn-red bad" name="bad" id="bad" {% if captcha %} disabled {% endif %}>B&#818;ad</button>
     <div class="showmask">
       <div class="switch_box box_1">
-        <input type="checkbox" class="switch_1" id="maskcheck" checked onclick="toggleMask()"><label>Show mask</label>
+        <input type="checkbox" class="switch_1" id="maskcheck" checked onclick="toggleMask()"><label>S&#818;how mask</label>
       </div>
     </div>
     <div class="error" {% if success %} style="display:none" {% endif %}>Captcha not valid!</div>
@@ -34,9 +34,15 @@
 
 <p>Our training set is based upon the Cambridge GIS (collected in 2014) and present-day Google Maps imagery, which means that there are mismatches between regions marked as tree/not tree as individual trees have either been added or removed. Additionally, the original training set has some masks that are inaccurate, and our outputs from the convolutional neural network are also imperfect.</p>
 
-<p>On this page, you can help us do better! Below you should see two images, one corresponding to the current satellite imagery, and one corresponding to our mask for that region. The regions in black are supposed to correspond to the tree canopy: we would like you to help us determine if that is the case by marking each mask as either being "accurate" or "inaccurate".</p>
+<p>On this page, you can help us do better! Above you should see a satellite image overlaid with a magenta mask for that image marking the tree locations. We would like you to rate each mask as being either "good," "okay," or "bad."</p>
 
-<p>There is of course some subjectivity in this assessment, but a good rule of thumb is that if >10% of the mask is mismatched with the image, that mask should be considered "inaccurate."</p>
+<p>There is of course some subjectivity in this assessment, but the following rubrick should give some sense of what "good," "okay," and "bad" correspond to:</p>
 
-<p>Making your assessment on a given image pair should reload this page. No login is required (only a captcha).</p>
+<ul>
+  <li>Good: &gt;90% of image area accurately labeled as tree/not tree.
+  <li>Okay: 70 - 90% of image area accurately labeled.
+  <li>Bad: &lt;70% of image area accurately labeled.
+</ul>
+
+<p>Clicking one of the buttons above should reload this page and provide a new image to assess. The captcha must be solved before assessments will be accepted.</p>
 {% endblock %}

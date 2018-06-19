@@ -1,3 +1,18 @@
+document.onkeyup = function(e) {
+  if (e.which == 71) {
+    document.getElementById('good').click();
+  }
+  else if (e.which == 79) {
+    document.getElementById('okay').click();
+  }
+  else if (e.which == 66) {
+    document.getElementById('bad').click();
+  }
+  else if (e.which == 83) {
+    document.getElementById('maskcheck').click();
+  }
+};
+
 function insertSrcs() {
   var ids = document.head.querySelector("[property=ids]").content.split(',');
   var i = Math.floor(Math.random() * ids.length);
