@@ -1,3 +1,5 @@
+var load_time;
+
 document.onkeyup = function(e) {
   if (e.which == 71) {
     document.getElementById('good').click();
@@ -20,12 +22,21 @@ function insertSrcs() {
   document.getElementById('satellite').src = 'parcels/' + ids[i] + '.png';
   document.getElementById('mask').src = 'parcels/' + ids[i] + '-outline.png';
   document.getElementById('mask-num').value = ids[i];
+
+  load_time = Date.now();
+  setTimeout(
+    function() {
+      enableBtn(true);
+  }, 3000);
 }
 
-function enableBtn() {
-  document.getElementById('good').disabled = false;
-  document.getElementById('okay').disabled = false;
-  document.getElementById('bad').disabled = false;
+function enableBtn(ignore_time) {
+  ignore_time = ignore_time || false;
+  if (!ignore_time && Date.now() - load_time > 3000000) {
+    document.getElementById('good').disabled = false;
+    document.getElementById('okay').disabled = false;
+    document.getElementById('bad').disabled = false;
+  }
 }
 
 function disableBtn() {
