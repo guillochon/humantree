@@ -16,6 +16,8 @@ async function loadModel() {
 
 function predict(imageData) {
 
+  console.log(tf.memory().numBytes);
+  console.log(tf.getBackend());
   return tf.tidy(() => {
 
     // Convert the canvas pixels to a Tensor of the matching shape
@@ -25,12 +27,14 @@ function predict(imageData) {
     std = tf.scalar(50.741535);
     img = img.sub(mean).div(std);
     img = img.reshape([1, 512, 512, 3]);
+	console.log(tf.memory().numBytes);
     img = this.model.predict(img).mul(
       tf.scalar(255.0)).dataSync();
 
     const output = Uint8ClampedArray.from(img);
 
     drawImage(output);
+	console.log(tf.memory().numBytes);
 
     return output;
   });
@@ -131,6 +135,7 @@ function handleProcess(response) {
     dataType: 'json',
     success: function (json) {
       img = predict(json);
+      console.log(tf.memory().numBytes);
       document.getElementById('analyzer').style.display = "none"
       document.getElementById('images').style.display = "block"
     },

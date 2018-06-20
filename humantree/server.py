@@ -106,7 +106,7 @@ def process():
 
     if request.method == 'POST':
         address = request.form.get('address')
-        print(address)
+        logger.info(address)
         fpath = ht.get_image_from_address(address)
         if fpath is not None:
             return fpath.split('/')[-1]
