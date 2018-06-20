@@ -236,11 +236,24 @@ class HumanTree(object):
             files = glob(os.path.join('parcels', '*'))
             for f in files:
                 os.remove(f)
+
+        votes = {}
+        with open('votes.json', 'r') as f:
+            votes = json.load(f)
+        self._blacklist = [int(k) for k, v in votes.items() if (float(v.get(
+            'bad', 0)) / max(v.get('good', 0) + v.get('okay', 0) + v.get(
+                'bad', 0), 1)) >= 0.9]
+        print('Number of blacklisted masks: {}'.format(len(self._blacklist)))
+
         self._train_count = 0
         lots_skipped = 0
+        lots_blacklisted = 0
         for pi, polys in enumerate(tqdm(self._parcel_polygons, total=limit)):
             if limit is not None and pi >= limit:
                 break
+            if pi in self._blacklist:
+                lots_blacklisted += 1
+                continue
             poly = polys[0]
             bound_poly, mlat, mlon, bp = self.get_bound_poly(poly)
             if not bound_poly.contains(poly):
@@ -324,7 +337,9 @@ class HumanTree(object):
             self._train_count += 1
 
         print('Training on {} lots, skipped {} because they were '
-              'too large.'.format(self._train_count, lots_skipped))
+              'too large, and {} lots because they were '
+              'blacklisted.'.format(
+                  self._train_count, lots_skipped, lots_blacklisted))
 
     def get_state(self, address):
         """Get lat/lon from address using Geocode API."""
@@ -409,7 +424,7 @@ class HumanTree(object):
 
         return ((lng - d_lng, lat - d_lat), (lng + d_lng, lat + d_lat))
 
-    def get_data(self, fractions=(0.0, 0.8)):
+    def get_data(self, fractions=(0.0, 0.8), use_blacklist=True):
         """Return image and mask for training image segmentation."""
         parcel_paths = list(sorted([
             x for x in glob(os.path.join(
@@ -587,7 +602,8 @@ class HumanTree(object):
         model = self.get_unet()
 
         self.notice('Loading and preprocessing test data...')
-        imgs_test, masks_test, ids_test = self.get_data(fractions=(0.8, 1.0))
+        imgs_test, masks_test, ids_test = self.get_data(
+            fractions=(0.8, 1.0), use_blacklist=False)
         imgs_test = self.preprocess(imgs_test, 3)
 
         imgs_test = imgs_test.astype('float32')

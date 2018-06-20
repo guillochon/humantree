@@ -30,6 +30,8 @@ function predict(imageData) {
 
     const output = Uint8ClampedArray.from(img);
 
+    tf.dispose(img);
+
     drawImage(output);
 
     return output;
