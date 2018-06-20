@@ -26,11 +26,11 @@ function predict(imageData) {
     img = img.sub(mean).div(std);
     img = img.reshape([1, 512, 512, 3]);
     img = this.model.predict(img).mul(
-      tf.scalar(255.0)).dataSync();
+      tf.scalar(255.0));
 
     const output = Uint8ClampedArray.from(img);
 
-    tf.dispose(img);
+    img.dispose();
 
     drawImage(output);
 
