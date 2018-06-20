@@ -90,10 +90,14 @@ function metrics(image) {
       var met_str = '';
       met_str += '<strong>' + String((
         mets['fraction'] * 100).toFixed(1)) + '%</strong> of property shaded.<br><br>'
-      met_str += 'Heating & cooling costs: $' + String((
-        mets['cost']).toFixed(0)) + ' per year.<br>'
-      met_str += 'Savings from trees: <strong>$' + String((
-        mets['savings']).toFixed(0)) + ' per year</strong>.<br><br>'
+      if (mets['cost'] > 0.0) {
+        met_str += 'Heating & cooling costs: $' + String((
+          mets['cost']).toFixed(0)) + ' per year.<br>'
+      }
+      if (mets['savings'] > 0.0) {
+        met_str += 'Savings from trees: <strong>$' + String((
+          mets['savings']).toFixed(0)) + ' per year</strong>.<br><br>'
+      }
       met_str += 'Noise abatement from trees: <strong>' + String((
         mets['noise_abatement']).toFixed(1)) + ' dB</strong>.<br><br>'
       if (mets['house_value'] > 0.0) {

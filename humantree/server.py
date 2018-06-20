@@ -126,9 +126,16 @@ def metrics():
         data[data > 255 / 2.0] = 1
         fraction = np.sum(1 - data) / (512.0 * 512)
         state = ht.get_state(address)
-        eprice = ht.get_electricity_price(state) / 100
-        hdd = ht.get_degree_days(state, 'heating')
-        cdd = ht.get_degree_days(state, 'cooling')
+        try:
+            eprice = ht.get_electricity_price(state) / 100
+        except Exception:
+            eprice = None
+        try:
+            hdd = ht.get_degree_days(state, 'heating')
+            cdd = ht.get_degree_days(state, 'cooling')
+        except Exception:
+            hdd = None
+            cdd = None
 
         house_value = 0.0
         value_increase = 0.0
@@ -139,7 +146,9 @@ def metrics():
         else:
             sqft = (
                 float(
-                    zill.extended_data.finished_sqft) if zill.has_extended_data
+                    zill.extended_data.finished_sqft) if (
+                        zill.has_extended_data and
+                        zill.extended_data.finished_sqft is not None)
                 else 1000.0)
 
             if zill.zestimate.amount is not None:
@@ -147,12 +156,18 @@ def metrics():
                 value_increase = 0.1 * house_value * fraction
 
         # Gross approximation: kwh usage = 0.5 * dd.
-        cost = 0.6 * (hdd + cdd) * eprice * sqft / 1000.0
+        if hdd is not None and cdd is not None and eprice is not None:
+            cost = 0.6 * (hdd + cdd) * eprice * sqft / 1000.0
+        else:
+            cost = 0.0
 
         # Savings: Assume 0.66 * 365 * 5 dd for full tree coverage.
         # Explanation: 66% of days require either heating or cooling, trees
         # heat/cool 5 degrees in area around them.
-        savings = 0.66 * 365 * 5 * eprice * fraction
+        if eprice is not None:
+            savings = 0.66 * 365 * 5 * eprice * fraction
+        else:
+            savings = 0.0
 
         noise_abatement = 10 * fraction
 
