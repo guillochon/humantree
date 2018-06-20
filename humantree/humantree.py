@@ -389,6 +389,28 @@ class HumanTree(object):
         return self._zillow_client.GetDeepSearchResults(
             self._zillow_key, address, postal_code, True)
 
+    def get_updated_prop_details(self, zpid):
+        import xmltodict
+        from zillow.place import Place
+        url = 'https://www.zillow.com/webservice/GetUpdatedPropertyDetails.htm'
+        parameters = {
+            'zws-id': self._zillow_key,
+            'zpid': zpid
+        }
+        resp = self._zillow_client._RequestUrl(url, 'GET', data=parameters)
+        data = resp.content.decode('utf-8')
+
+        xmltodict_data = xmltodict.parse(data)
+
+        place = Place()
+        try:
+            place.set_data(xmltodict_data.get(
+                'SearchResults:searchresults', None)['response']['results']['result'])
+        except:
+            raise ZillowError({'message': "Zillow did not return a valid response: %s" % data})
+
+        return place
+
     def get_coordinates(self, address):
         """Get lat/lon from address using Geocode API."""
         result = self._google_client.geocode(address)

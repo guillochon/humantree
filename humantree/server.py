@@ -140,7 +140,9 @@ def metrics():
         house_value = 0.0
         value_increase = 0.0
         try:
-            zill = ht.get_zillow(address, ht.get_zip(address))
+            zadd = address.replace(', USA', '')
+            zill = ht.get_zillow(zadd, ht.get_zip(address))
+            # upd = ht.get_updated_prop_details(zill.zpid)
         except Exception:
             sqft = 1000.0
         else:
@@ -169,7 +171,7 @@ def metrics():
         else:
             savings = 0.0
 
-        noise_abatement = 10 * fraction
+        noise_abatement = 10 * np.log10(1.0 + fraction)
 
         return json.dumps({
             'fraction': fraction,
