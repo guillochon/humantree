@@ -24,10 +24,13 @@ function insertSrcs() {
   document.getElementById('mask-num').value = ids[i];
 
   load_time = Date.now();
-  setTimeout(
-    function() {
-      enableBtn();
-  }, 1500);
+  var captcha = document.head.querySelector("[property=captcha]").content;
+  if (captcha === "False") {
+      setTimeout(
+        function() {
+          enableBtn();
+      }, 1500);
+  }
 }
 
 function enableBtn() {

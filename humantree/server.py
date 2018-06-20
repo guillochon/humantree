@@ -189,6 +189,7 @@ def favicon():
         mimetype='image/vnd.microsoft.icon')
 
 
+# This route ignored by nginx, only used locally.
 @app.route('/<path:path>')
 def send_file(path):
     """Send a file to the user."""
