@@ -47,10 +47,12 @@ function drawImage(image) {
     for (var x = 0; x < width; x++) {
       var ipos = (y * width + x);
       var pos = ipos * 4; // position in buffer based on x and y
-      buffer[pos] = image[ipos]; // some R value [0, 255]
-      buffer[pos + 1] = image[ipos]; // some G value
-      buffer[pos + 2] = image[ipos]; // some B value
-      buffer[pos + 3] = 255; // set alpha channel
+	  var bit = image[ipos] > 127 ? 0 : 255;
+	  var alp = image[ipos] > 127 ? 0 : 100;
+      buffer[pos] = bit; // some R value [0, 255]
+      buffer[pos + 1] = 0; // some G value
+      buffer[pos + 2] = bit; // some B value
+      buffer[pos + 3] = alp; // set alpha channel
     }
   }
 
@@ -75,11 +77,12 @@ function drawImage(image) {
   var cimage = new Image();
   cimage.id = 'predict';
   cimage.src = dataUri;
+  cimage.classList.add('validate-mask');
   var el = document.getElementById('predict');
   el.parentNode.replaceChild(cimage, el);
   var pred = $("#predict");
-  pred.width(width / 2);
-  pred.height(height / 2);
+  pred.width(400);
+  pred.height(400);
 }
 
 function metrics(image) {
@@ -128,8 +131,8 @@ function handleProcess(response) {
   }
   var sat = $("#satellite");
   sat.attr("src", "queries/" + response);
-  sat.width(width / 2);
-  sat.height(height / 2);
+  // sat.width(width / 2);
+  // sat.height(height / 2);
   $.ajax({
     url: "queries/" + response.replace('.png', '.json'),
     dataType: 'json',
@@ -137,10 +140,11 @@ function handleProcess(response) {
       img = predict(json);
       console.log(tf.memory().numBytes);
       document.getElementById('analyzer').style.display = "none"
-      document.getElementById('images').style.display = "block"
+      document.getElementById('imwrap').style.display = "block"
     },
     complete: function () {
       document.getElementById('metrizer').style.display = "block"
+	  document.getElementById('btn').disabled = false;
       metrics(img);
     }
   });
@@ -148,7 +152,7 @@ function handleProcess(response) {
   //   '.png', '.json'), function(json) {
   //   img = predict(json);
   //   document.getElementById('analyzer').style.display = "none"
-  //   document.getElementById('images').style.display = "block"
+  //   document.getElementById('imwrap').style.display = "block"
   //   return img;
   // });
 }
@@ -157,9 +161,10 @@ $(function() {
   $('#process').submit(function(e) {
     e.preventDefault(); // prevent the form from 'submitting'
     address = document.getElementById('address').value
+	document.getElementById('btn').disabled = true;
     document.getElementById('invalid-address').style.display = 'none'
     document.getElementById('analyzer').style.display = "block"
-    document.getElementById('images').style.display = "none"
+    document.getElementById('imwrap').style.display = "none"
     document.getElementById('metrics').style.display = "none"
 
     var url = e.target.action; // get the target
