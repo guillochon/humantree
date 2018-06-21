@@ -139,6 +139,8 @@ def metrics():
 
         house_value = 0.0
         value_increase = 0.0
+        one_tree = 0.0
+        one_tree_frac = 0.05
         try:
             zadd = address.replace(', USA', '')
             zill = ht.get_zillow(zadd, ht.get_zip(address))
@@ -153,9 +155,13 @@ def metrics():
                         zill.extended_data.finished_sqft is not None)
                 else 1000.0)
 
+            one_tree_frac = 0.05
+
             if zill.zestimate.amount is not None:
                 house_value = float(zill.zestimate.amount)
-                value_increase = 0.1 * house_value * fraction
+                max_value_increase = 0.1 * house_value
+                value_increase = max_value_increase * fraction
+                one_tree_value = max_value_increase * one_tree_frac
 
         # Gross approximation: kwh usage = 0.5 * dd.
         if hdd is not None and cdd is not None and eprice is not None:
@@ -167,19 +173,31 @@ def metrics():
         # Explanation: 66% of days require either heating or cooling, trees
         # heat/cool 5 degrees in area around them.
         if eprice is not None:
-            savings = 0.66 * 365 * 5 * eprice * fraction
+            max_savings = 0.66 * 365 * 5 * eprice
+            savings = max_savings * fraction
+            one_tree_savings = max_savings * one_tree_frac
         else:
             savings = 0.0
+            max_savings = 0.0
+            one_tree_savings = 0.0
 
-        noise_abatement = 10 * np.log10(1.0 + fraction)
+        max_noise_abatement = 10
+        noise_abatement = max_noise_abatement * np.log10(1.0 + 9.0 * fraction)
+        one_tree_noise = max_noise_abatement * np.log10(1.0 + 9.0 * one_tree_frac)
 
         return json.dumps({
             'fraction': fraction,
             'cost': cost,
             'savings': savings,
+            'one_tree_savings': one_tree_savings,
+            'max_savings': max_savings,
             'house_value': house_value,
             'value_increase': value_increase,
-            'noise_abatement': noise_abatement
+            'max_value_increase': max_value_increase,
+            'one_tree_value': one_tree_value,
+            'noise_abatement': noise_abatement,
+            'max_noise_abatement': max_noise_abatement,
+            'one_tree_noise': one_tree_noise
         })
 
 

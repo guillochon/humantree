@@ -92,30 +92,98 @@ function metrics(image) {
     dataType: 'json',
     data: {'image': image.join(','), 'address': address},
     success: function (data) {
+      var savingsKnob = pureknob.createKnob(300, 250, 0.7);
+      savingsKnob.setProperty('angleStart', -0.4 * Math.PI);
+      savingsKnob.setProperty('angleEnd', 0.4 * Math.PI);
+      savingsKnob.setProperty('colorFG', 'forestgreen');
+      savingsKnob.setProperty('trackWidth', 0.4);
+      savingsKnob.setProperty('valMin', 0);
+      savingsKnob.setProperty('readonly', true);
+      savingsKnob.setProperty('colorEX', 'lightgreen');
+      savingsKnob.setProperty('prefix', '$');
+      savingsKnob.setProperty('showRange', true);
+
+      var noiseKnob = pureknob.createKnob(300, 250, 0.7);
+      noiseKnob.setProperty('angleStart', -0.4 * Math.PI);
+      noiseKnob.setProperty('angleEnd', 0.4 * Math.PI);
+      noiseKnob.setProperty('colorFG', 'forestgreen');
+      noiseKnob.setProperty('trackWidth', 0.4);
+      noiseKnob.setProperty('valMin', 0);
+      noiseKnob.setProperty('readonly', true);
+      noiseKnob.setProperty('colorEX', 'lightgreen');
+      noiseKnob.setProperty('suffix', 'dB');
+      noiseKnob.setProperty('showRange', true);
+
+      var valueKnob = pureknob.createKnob(300, 250, 0.7);
+      valueKnob.setProperty('angleStart', -0.4 * Math.PI);
+      valueKnob.setProperty('angleEnd', 0.4 * Math.PI);
+      valueKnob.setProperty('colorFG', 'forestgreen');
+      valueKnob.setProperty('trackWidth', 0.4);
+      valueKnob.setProperty('valMin', 0);
+      valueKnob.setProperty('readonly', true);
+      valueKnob.setProperty('colorEX', 'lightgreen');
+      valueKnob.setProperty('prefix', '$');
+      valueKnob.setProperty('suffix', 'k');
+      valueKnob.setProperty('showRange', true);
+
       mets = data;
       document.getElementById('metrizer').style.display = "none"
       var met_str = '';
-      met_str += '<strong>' + String((
-        mets['fraction'] * 100).toFixed(1)) + '%</strong> of property shaded.<br><br>'
+      met_str += '<h2><strong>' + String((
+        mets['fraction'] * 100).toFixed(1)) + '%</strong> of property shaded.</h2><br><br>'
+      met_str += '<div class="dial-container" id="savings_knob" width=150 height=100></div>'
+      met_str += '<div class="stat-summary">'
       if (mets['cost'] > 0.0) {
         met_str += 'Heating & cooling costs: $' + String((
           mets['cost']).toFixed(0)) + ' per year.<br>'
       }
       if (mets['savings'] > 0.0) {
-        met_str += 'Savings from trees: <strong>$' + String((
-          mets['savings']).toFixed(0)) + ' per year</strong>.<br><br>'
+        met_str += 'Savings from current trees: $' + String((
+          mets['savings']).toFixed(0)) + ' per year.<br>'
+	    met_str += 'Savings by adding a large tree: <strong>$' + String((
+	  	  mets['one_tree_savings']).toFixed(1)).replace(
+	  	  /\B(?=(\d{3})+(?!\d))/g, ",") + ' per year</strong>.<br clear=all><br>'
+        savingsKnob.setProperty('valMax', mets['max_savings'].toFixed(0));
+        savingsKnob.setValue(mets['savings'].toFixed(0));
+        savingsKnob.setProperty('excess', mets['one_tree_savings']);
       }
-      met_str += 'Noise abatement from trees: <strong>' + String((
-        mets['noise_abatement']).toFixed(1)) + ' dB</strong>.<br><br>'
+
+      met_str += '</div>'
+      met_str += '<div class="dial-container" id="noise_knob" width=150 height=100></div>'
+      met_str += '<div class="stat-summary">'
+      met_str += 'Noise abatement from current trees: ' + String((
+        mets['noise_abatement']).toFixed(1)) + ' dB.<br>'
+	  met_str += 'Additional abatement by adding a large tree: <strong>' + String((
+	    mets['one_tree_noise']).toFixed(1)).replace(
+	  	/\B(?=(\d{3})+(?!\d))/g, ",") + ' dB</strong>.<br clear=all><br>'
+      met_str += '</div>'
+      noiseKnob.setProperty('valMax', parseFloat(mets['max_noise_abatement'].toFixed(0)));
+      noiseKnob.setValue(parseFloat(mets['noise_abatement'].toFixed(0)));
+      noiseKnob.setProperty('excess', mets['one_tree_noise']);
+
       if (mets['house_value'] > 0.0) {
+        met_str += '<div class="dial-container" id="value_knob" width=150 height=100></div>'
+        met_str += '<div class="stat-summary">'
         met_str += 'Estimated house value: $' + String((
           mets['house_value']).toFixed(0)).replace(
             /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
-        met_str += 'Value of trees: <strong>$' + String((
+        met_str += 'Value increase from present trees: $' + String((
           mets['value_increase']).toFixed(0)).replace(
+            /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
+		met_str += 'Value increase by adding a large tree: <strong>$' + String((
+		  mets['one_tree_value']).toFixed(0)).replace(
             /\B(?=(\d{3})+(?!\d))/g, ",") + '</strong>.'
+        met_str += '</div>'
+        valueKnob.setProperty('valMax',
+            parseFloat((mets['max_value_increase'] / 1000.0).toFixed(1)));
+        valueKnob.setValue(
+            parseFloat((mets['value_increase'] / 1000.0).toFixed(1)));
+        valueKnob.setProperty('excess', mets['one_tree_value'] / 1000.0);
       }
       document.getElementById('metrics').innerHTML = met_str;
+      document.getElementById('savings_knob').appendChild(savingsKnob.node());
+      document.getElementById('noise_knob').appendChild(noiseKnob.node());
+      document.getElementById('value_knob').appendChild(valueKnob.node());
       document.getElementById('metrics').style.display = "block"
     }
   })

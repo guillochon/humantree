@@ -815,3 +815,12 @@ input[type="checkbox"].switch_1{
 .bad-txt {
   color: #ff7373;
 }
+
+.dial-container {
+  float: left;
+  margin-bottom: -40px;
+}
+
+.stat-summary {
+  margin-bottom: 10px;
+}
