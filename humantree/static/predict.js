@@ -14,7 +14,7 @@ async function loadModel() {
   document.getElementById('btn').disabled = false;
 }
 
-function predict(imageData) {
+function predict(imageData, propRadius) {
 
   console.log(tf.memory().numBytes);
   console.log(tf.getBackend());
@@ -33,14 +33,14 @@ function predict(imageData) {
 
     const output = Uint8ClampedArray.from(img);
 
-    drawImage(output);
+    drawImage(output, propRadius);
 	console.log(tf.memory().numBytes);
 
     return output;
   });
 }
 
-function drawImage(image) {
+function drawImage(image, propRadius) {
   var buffer = new Uint8ClampedArray(width * height * 4);
 
   for (var y = 0; y < height; y++) {
@@ -58,7 +58,7 @@ function drawImage(image) {
 
   // create off-screen canvas element
   var canvas = document.createElement('canvas'),
-    ctx = canvas.getContext('2d');
+  ctx = canvas.getContext('2d');
 
   canvas.width = width;
   canvas.height = height;
@@ -71,6 +71,14 @@ function drawImage(image) {
 
   // update canvas with new data
   ctx.putImageData(idata, 0, 0);
+
+  ctx.beginPath();
+  // WARNING: 512/70 eyeballed, need exact calc.
+  ctx.arc(width/2, height/2, 512.0 / 70.0 * propRadius, 0.0, 2.0*Math.PI);
+  ctx.lineWidth = 5;
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = 'yellow';
+  ctx.stroke();
 
   var dataUri = canvas.toDataURL(); // produces a PNG file
 
@@ -99,6 +107,7 @@ function metrics(image) {
       savingsKnob.setProperty('trackWidth', 0.4);
       savingsKnob.setProperty('valMin', 0);
       savingsKnob.setProperty('readonly', true);
+      savingsKnob.setProperty('needle', true);
       savingsKnob.setProperty('colorEX', 'lightgreen');
       savingsKnob.setProperty('prefix', '$');
       savingsKnob.setProperty('showRange', true);
@@ -110,6 +119,7 @@ function metrics(image) {
       noiseKnob.setProperty('trackWidth', 0.4);
       noiseKnob.setProperty('valMin', 0);
       noiseKnob.setProperty('readonly', true);
+      noiseKnob.setProperty('needle', true);
       noiseKnob.setProperty('colorEX', 'lightgreen');
       noiseKnob.setProperty('suffix', 'dB');
       noiseKnob.setProperty('showRange', true);
@@ -121,6 +131,7 @@ function metrics(image) {
       valueKnob.setProperty('trackWidth', 0.4);
       valueKnob.setProperty('valMin', 0);
       valueKnob.setProperty('readonly', true);
+      valueKnob.setProperty('needle', true);
       valueKnob.setProperty('colorEX', 'lightgreen');
       valueKnob.setProperty('prefix', '$');
       valueKnob.setProperty('suffix', 'k');
@@ -129,13 +140,14 @@ function metrics(image) {
       mets = data;
       document.getElementById('metrizer').style.display = "none"
       var met_str = '';
-      met_str += '<h2><strong>' + String((
-        mets['fraction'] * 100).toFixed(1)) + '%</strong> of property shaded.</h2><br><br>'
+      met_str += '<span class="shade-fraction"><strong>' + String((
+        mets['fraction'] * 100).toFixed(1)) + '%</strong> of property shaded.</span><br>'
       met_str += '<div class="dial-container" id="savings_knob" width=150 height=100></div>'
       met_str += '<div class="stat-summary">'
       if (mets['cost'] > 0.0) {
         met_str += 'Heating & cooling costs: $' + String((
-          mets['cost']).toFixed(0)) + ' per year.<br>'
+          mets['cost']).toFixed(0)).replace(
+          /\B(?=(\d{3})+(?!\d))/g, ",") + ' per year.<br>'
       }
       if (mets['savings'] > 0.0) {
         met_str += 'Savings from current trees: $' + String((
@@ -143,9 +155,10 @@ function metrics(image) {
 	    met_str += 'Savings by adding a large tree: <strong>$' + String((
 	  	  mets['one_tree_savings']).toFixed(1)).replace(
 	  	  /\B(?=(\d{3})+(?!\d))/g, ",") + ' per year</strong>.<br clear=all><br>'
-        savingsKnob.setProperty('valMax', mets['max_savings'].toFixed(0));
-        savingsKnob.setValue(mets['savings'].toFixed(0));
+        savingsKnob.setProperty('valMax', parseFloat(mets['max_savings'].toFixed(0)));
+        savingsKnob.setValue(parseFloat(mets['savings'].toFixed(0)));
         savingsKnob.setProperty('excess', mets['one_tree_savings']);
+        savingsKnob.setProperty('excessLabel', '+1🌳');
       }
 
       met_str += '</div>'
@@ -160,6 +173,7 @@ function metrics(image) {
       noiseKnob.setProperty('valMax', parseFloat(mets['max_noise_abatement'].toFixed(0)));
       noiseKnob.setValue(parseFloat(mets['noise_abatement'].toFixed(0)));
       noiseKnob.setProperty('excess', mets['one_tree_noise']);
+      noiseKnob.setProperty('excessLabel', '+1🌳');
 
       if (mets['house_value'] > 0.0) {
         met_str += '<div class="dial-container" id="value_knob" width=150 height=100></div>'
@@ -175,15 +189,20 @@ function metrics(image) {
             /\B(?=(\d{3})+(?!\d))/g, ",") + '</strong>.'
         met_str += '</div>'
         valueKnob.setProperty('valMax',
-            parseFloat((mets['max_value_increase'] / 1000.0).toFixed(1)));
+            parseFloat((mets['max_value_increase'] / 1000.0).toFixed(0)));
         valueKnob.setValue(
-            parseFloat((mets['value_increase'] / 1000.0).toFixed(1)));
+            parseFloat((mets['value_increase'] / 1000.0).toFixed(0)));
         valueKnob.setProperty('excess', mets['one_tree_value'] / 1000.0);
+        valueKnob.setProperty('excessLabel', '+1🌳');
       }
       document.getElementById('metrics').innerHTML = met_str;
-      document.getElementById('savings_knob').appendChild(savingsKnob.node());
+      if (mets['savings'] > 0.0) {
+        document.getElementById('savings_knob').appendChild(savingsKnob.node());
+      }
       document.getElementById('noise_knob').appendChild(noiseKnob.node());
-      document.getElementById('value_knob').appendChild(valueKnob.node());
+      if (mets['house_value'] > 0.0) {
+        document.getElementById('value_knob').appendChild(valueKnob.node());
+      }
       document.getElementById('metrics').style.display = "block"
     }
   })
@@ -191,21 +210,25 @@ function metrics(image) {
 
 function handleProcess(response) {
   console.log(response);
-  if (response == '') {
-    document.getElementById('invalid-address').style.display = 'block'
-    document.getElementById('analyzer').style.display = "none"
-    document.getElementById('metrizer').style.display = "none"
+  if (Object.keys(response).length === 0) {
+    document.getElementById('invalid-address').style.display = 'block';
+    document.getElementById('analyzer').style.display = "none";
+    document.getElementById('metrizer').style.display = "none";
     return;
   }
+
+  var path = 'path' in response ? response['path'] : '';
+  var radius = 'radius' in response ? response['radius'] : 0.0;
+
   var sat = $("#satellite");
-  sat.attr("src", "queries/" + response);
+  sat.attr("src", "queries/" + path);
   // sat.width(width / 2);
   // sat.height(height / 2);
   $.ajax({
-    url: "queries/" + response.replace('.png', '.json'),
+    url: "queries/" + path.replace('.png', '.json'),
     dataType: 'json',
     success: function (json) {
-      img = predict(json);
+      img = predict(json, radius);
       console.log(tf.memory().numBytes);
       document.getElementById('analyzer').style.display = "none"
       document.getElementById('imwrap').style.display = "block"
@@ -216,7 +239,7 @@ function handleProcess(response) {
       metrics(img);
     }
   });
-  // img = $.getJSON("queries/" + response.replace(
+  // img = $.getJSON("queries/" + path.replace(
   //   '.png', '.json'), function(json) {
   //   img = predict(json);
   //   document.getElementById('analyzer').style.display = "none"

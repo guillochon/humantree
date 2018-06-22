@@ -229,7 +229,6 @@ class HumanTree(object):
         import matplotlib.pyplot as plt
         plt.switch_backend('agg')
 
-        # rearth = 6371000.0
         if not os.path.isdir('parcels'):
             os.mkdir('parcels')
         if purge:
@@ -384,10 +383,37 @@ class HumanTree(object):
         result = sorted(result)[-1][1]
         return result
 
-    def get_zillow(self, address, postal_code):
-        """Get square feet of a property."""
+    def get_zillow(self, address):
+        """Get deep search results for a property."""
+        zadd = address.replace(', USA', '')
+        zzip = self.get_zip(address)
         return self._zillow_client.GetDeepSearchResults(
-            self._zillow_key, address, postal_code, True)
+            self._zillow_key, zadd, zzip, True)
+
+    def get_sqft(self, zill):
+        """Get square feet from a zillow object."""
+        sqft = (
+            float(
+                zill.extended_data.finished_sqft) if (
+                    zill.has_extended_data and
+                    zill.extended_data.finished_sqft is not None)
+            else 1000.0)
+        return sqft
+
+    def get_address_radius(self, address):
+        try:
+            zill = self.get_zillow(address)
+            sqft = self.get_sqft(zill)
+        except Exception:
+            sqft = 1000.0
+        return 0.3048 * 2.0 * np.sqrt(sqft)
+
+    def get_zill_radius(self, zill):
+        try:
+            sqft = self.get_sqft(zill)
+        except Exception:
+            sqft = 1000.0
+        return 0.3048 * 2.0 * np.sqrt(sqft)
 
     def get_updated_prop_details(self, zpid):
         import xmltodict

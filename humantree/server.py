@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 
-from flask import Flask, render_template, send_from_directory, request
+from flask import Flask, render_template, send_from_directory, request, jsonify
 from humantree import HumanTree
 
 app = Flask(__name__)
@@ -108,9 +108,13 @@ def process():
         address = request.form.get('address')
         logger.info(address)
         fpath = ht.get_image_from_address(address)
+        radius = ht.get_address_radius(address)
         if fpath is not None:
-            return fpath.split('/')[-1]
-        return ''
+            return jsonify({
+                'path': fpath.split('/')[-1],
+                'radius': radius
+            })
+        return jsonify({})
 
 
 @app.route('/metrics', methods=['GET', 'POST'])
@@ -122,9 +126,28 @@ def metrics():
         image = request.form.get('image')
         address = request.form.get('address')
         data = np.array([float(x) for x in image.split(',')])
+
+        try:
+            zill = ht.get_zillow(address)
+        except Exception:
+            zill = None
+
+        radius = ht.get_zill_radius(zill)
+
         data[data < 255 / 2.0] = 0
         data[data > 255 / 2.0] = 1
-        fraction = np.sum(1 - data) / (512.0 * 512)
+
+        n = int(np.round(np.sqrt(data.shape[0])))
+        data = np.reshape(data, (n, n))
+        a, b = int(np.floor(data.shape[0] / 2.0)), int(np.floor(data.shape[1] / 2.0))
+        r = int(np.round(n * radius / 70.0))
+
+        y, x = np.ogrid[-a:n-a, -b:n-b]
+        mask = x*x + y*y <= r*r
+
+        full = np.ones((n, n))[mask]
+        fraction = np.sum(1 - data[mask]) / np.sum(full)
+
         state = ht.get_state(address)
         try:
             eprice = ht.get_electricity_price(state) / 100
@@ -139,21 +162,14 @@ def metrics():
 
         house_value = 0.0
         value_increase = 0.0
+        max_value_increase = 0.0
         one_tree = 0.0
+        one_tree_value = 0.0
         one_tree_frac = 0.05
-        try:
-            zadd = address.replace(', USA', '')
-            zill = ht.get_zillow(zadd, ht.get_zip(address))
-            # upd = ht.get_updated_prop_details(zill.zpid)
-        except Exception:
-            sqft = 1000.0
-        else:
-            sqft = (
-                float(
-                    zill.extended_data.finished_sqft) if (
-                        zill.has_extended_data and
-                        zill.extended_data.finished_sqft is not None)
-                else 1000.0)
+        sqft = 1000.0
+
+        if zill is not None:
+            sqft = ht.get_sqft(zill)
 
             one_tree_frac = 0.05
 
