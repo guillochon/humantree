@@ -140,6 +140,7 @@ def metrics():
         n = int(np.round(np.sqrt(data.shape[0])))
         data = np.reshape(data, (n, n))
         a, b = int(np.floor(data.shape[0] / 2.0)), int(np.floor(data.shape[1] / 2.0))
+        # Warning: 70 was eyeballed, need to get exact scale!
         r = int(np.round(n * radius / 70.0))
 
         y, x = np.ogrid[-a:n-a, -b:n-b]
