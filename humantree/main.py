@@ -47,7 +47,7 @@ def main():
         dest='tasks',
         type=str,
         default=['collect train predict'],
-        nargs='?',
+        nargs='*',
         help='Tasks to perform.')
 
     parser.add_argument(
@@ -56,7 +56,6 @@ def main():
         dest='size',
         type=int,
         default=4000,
-        nargs=1,
         help='Set number of images to train/validate on.')
 
     args = parser.parse_args()
@@ -70,4 +69,4 @@ def main():
         ht.train()
 
     if 'predict' in args.tasks:
-        ht.predict(kind='all')
+        ht.predict(limit=args.size, kind='all')

@@ -83,16 +83,19 @@ def help():
 
     captcha = ip not in ips
 
-    ids = sorted([x.split('/')[
+    tids = sorted(['t' + x.split('/')[
         -1].split('-')[0] for x in glob('parcels/*-outline.png')])
-    qids = sorted(['-'.join(x.split('/')[
+    qids = sorted(['q' + '-'.join(x.split('/')[
         -1].split('-')[0:-1]) for x in glob('queries/*-outline.png')])
-    ids = ','.join([x for x in ids if x not in iids])
+    pids = sorted(['p' + x.split('/')[
+        -1].split('-')[0] for x in glob('preds/*-outline.png')])
+    tids = ','.join([x for x in tids if x not in iids])
     qids = ','.join([x for x in qids if x not in iids])
+    pids = ','.join([x for x in pids if x not in iids])
     iids = ','.join(iids)
     return render_template(
-        'help.html', ids=ids, qids=qids, iids=iids, captcha=captcha,
-        success=success)
+        'help.html', tids=tids, qids=qids, pids=pids, iids=iids,
+        captcha=captcha, success=success)
 
 
 @app.route('/about')
