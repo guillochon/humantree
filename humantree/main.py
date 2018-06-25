@@ -46,7 +46,7 @@ def main():
         '-t',
         dest='tasks',
         type=str,
-        default=['collect train predict'],
+        default=['collect', 'train', 'predict'],
         nargs='*',
         help='Tasks to perform.')
 
