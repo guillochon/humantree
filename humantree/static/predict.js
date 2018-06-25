@@ -215,6 +215,7 @@ function handleProcess(response) {
   console.log(response);
   if (Object.keys(response).length === 0) {
     document.getElementById('invalid-address').style.display = 'block';
+    document.getElementById('btn').disabled = false;
     document.getElementById('analyzer').style.display = "none";
     document.getElementById('metrizer').style.display = "none";
     return;
@@ -254,12 +255,17 @@ function handleProcess(response) {
 $(function() {
   $('#process').submit(function(e) {
     e.preventDefault(); // prevent the form from 'submitting'
-    address = document.getElementById('address').value
+    address = document.getElementById('address').value;
+    if ($.trim(address) == '') {
+        document.getElementById('invalid-address').style.display = 'block';
+        return;
+    }
+
     document.getElementById('btn').disabled = true;
     document.getElementById('invalid-address').style.display = 'none'
-    document.getElementById('analyzer').style.display = "block"
     document.getElementById('imwrap').style.display = "none"
     document.getElementById('metrics').style.display = "none"
+    document.getElementById('analyzer').style.display = "block"
 
     var url = e.target.action; // get the target
     var formData = $(this).serialize(); // get form data
