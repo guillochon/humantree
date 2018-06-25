@@ -41,12 +41,32 @@ def main():
         action='store_true',
         help='Purge cached files.')
 
+    parser.add_argument(
+        '--tasks',
+        '-t',
+        dest='tasks',
+        type=str,
+        default=['collect train predict'],
+        nargs='*',
+        help='Tasks to perform.')
+
+    parser.add_argument(
+        '--size',
+        '-s',
+        dest='size',
+        type=int,
+        default=4000,
+        help='Set number of images to train/validate on.')
+
     args = parser.parse_args()
 
     # print(ht.find_poly(args.address))
 
-    ht.get_poly_images(limit=4000, purge=args.purge)
+    if 'collect' in args.tasks:
+        ht.get_poly_images(limit=args.size, purge=args.purge)
 
-    ht.train()
+    if 'train' in args.tasks:
+        ht.train()
 
-    ht.predict_test()
+    if 'predict' in args.tasks:
+        ht.predict(limit=args.size, kind='all')

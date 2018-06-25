@@ -38,9 +38,11 @@ class HumanTree(object):
     _ZOOM = 20
     _IMGSIZE = 640
     _CROPPIX = 20
+    _BATCH_SIZE = 8
     _DPI = 100.0
     _SBUFF = 2.e-6  # buffer size for smoothing tree regions
     _POINT_BUFF = 2.e-5
+
     _DEFAULT_SQFT = 1000.0
     _DEFAULT_LOT_SQFT = 3000.0
     _REGIONS = {
@@ -67,6 +69,16 @@ class HumanTree(object):
         load_canopy_polys = kwargs.get('load_canopy_polys', True)
 
         self._dir_name = os.path.dirname(os.path.realpath(__file__))
+
+        # Load meta.json.
+        self.prt('Loading meta file...')
+        meta_path = os.path.join(self._dir_name, '..', 'meta.json')
+        if os.path.exists(meta_path):
+            with open(meta_path, 'r') as f:
+                meta = json.load(f)
+            self._imgs_mean = meta['mean']
+            self._imgs_std = meta['std']
+            self._train_count = meta['train_count']
 
         # Load parcel data.
         self._parcels_fname = self.download_file(self._PARCELS_URL)
@@ -319,6 +331,24 @@ class HumanTree(object):
             npic = pic[dxm:-dxp, dym:-dyp]
             misc.imsave(fpath, npic)
 
+    def make_outline_from_mask(self, mask_path, outline_path):
+        import rasterio
+        from rasterio.features import shapes
+        from shapely.geometry import shape
+
+        with rasterio.open(mask_path) as src:
+            image = src.read(1)
+            mask = image != 255
+            results = (
+                {'properties': {'raster_val': v}, 'geometry': s}
+                for i, (s, v)
+                in enumerate(
+                    shapes(image, mask=mask, transform=src.affine)))
+        shapes = [shape(x['geometry']) for x in list(results)]
+        if not os.path.exists(outline_path):
+            self.make_mask_from_polys(
+                shapes, outline_path, buff=0.25, reverse_y=True)
+
     def get_poly_images(self, limit=None, purge=False):
         """Retrieve images of all polygons on Google Maps."""
         import matplotlib.pyplot as plt
@@ -525,7 +555,7 @@ class HumanTree(object):
 
         return ((lng - d_lng, lat - d_lat), (lng + d_lng, lat + d_lat))
 
-    def get_data(self, fractions=(0.0, 0.8), use_blacklist=True):
+    def get_data(self, fractions=(0.0, 0.8), use_blacklist=True, limit=None):
         """Return image and mask for training image segmentation."""
         parcel_paths = list(sorted([
             x for x in glob(os.path.join(
@@ -539,6 +569,8 @@ class HumanTree(object):
         min_i = 0 if fractions[0] == 0.0 else int(np.floor(
             fractions[0] * self._train_count)) + 1
         max_i = int(np.floor(fractions[1] * self._train_count))
+        if limit is not None:
+            max_i = min(max_i, limit)
         indices = list(range(min_i, max_i))
         pids = []
         for i in tqdm(indices, desc='Reading images into arrays'):
@@ -680,7 +712,10 @@ class HumanTree(object):
         self.prepare_data()
 
         with open(os.path.join(self._dir_name, '..', 'meta.json'), 'w') as f:
-            json.dump([float(self._imgs_mean), float(self._imgs_std)], f)
+            json.dump({
+                'train_count': self._train_count,
+                'mean': float(self._imgs_mean),
+                'std': float(self._imgs_std)}, f)
 
         self.notice('Creating and compiling model...')
         model = self.get_unet()
@@ -689,22 +724,30 @@ class HumanTree(object):
 
         self.notice('Fitting model...')
 
-        tbCallBack = TensorBoard(write_grads=True, batch_size=8)
+        tbCallBack = TensorBoard(write_grads=True, batch_size=self._BATCH_SIZE)
 
         model.fit(
-            self._imgs_train, self._imgs_mask_train, batch_size=8,
+            self._imgs_train, self._imgs_mask_train,
+            batch_size=self._BATCH_SIZE,
             epochs=50, verbose=1, shuffle=True, validation_split=0.2,
             # callbacks=[model_checkpoint])
             callbacks=[model_checkpoint, tbCallBack])
 
-    def predict_test(self):
+    def predict(self, kind='test', limit=-1):
         """Test trained UNet."""
         self.notice('Creating and compiling model...')
         model = self.get_unet()
 
-        self.notice('Loading and preprocessing test data...')
+        if kind == 'test':
+            fractions = (0.8, 1.0)
+        elif kind == 'train':
+            fractions = (0.0, 0.8)
+        elif kind == 'all':
+            fractions = (0.0, 1.0)
+
+        self.notice('Loading and preprocessing {} data...'.format(kind))
         imgs_test, masks_test, ids_test = self.get_data(
-            fractions=(0.8, 1.0), use_blacklist=False)
+            fractions=fractions, use_blacklist=False, limit=limit)
         imgs_test = self.preprocess(imgs_test, 3)
 
         imgs_test = imgs_test.astype('float32')
@@ -715,7 +758,8 @@ class HumanTree(object):
         model.load_weights('weights.h5')
 
         self.notice('Predicting masks on test data...')
-        imgs_mask_test = model.predict(imgs_test, verbose=1)
+        imgs_mask_test = model.predict(
+            imgs_test, verbose=1, batch_size=self._BATCH_SIZE)
         np.save('imgs_mask_test.npy', imgs_mask_test)
 
         self.notice('Saving predicted masks to files...')
@@ -724,5 +768,13 @@ class HumanTree(object):
             os.mkdir(pred_dir)
         for image, id in zip(imgs_mask_test, ids_test):
             image = (image[:, :, 0] * 255.).astype(np.uint8)
-            imsave(os.path.join(
-                pred_dir, str(id).zfill(5) + '-pred.png'), image)
+            zid = str(id).zfill(5)
+            pred_path = os.path.join(pred_dir, zid + '-pred.png')
+            imsave(pred_path, image)
+            mask = image
+            mask[mask < 255 / 2.0] = 0
+            mask[mask > 255 / 2.0] = 255
+            mask_path = os.path.join(pred_dir, zid + '-mask.png')
+            imsave(mask_path, mask)
+            outline_path = os.path.join(pred_dir, zid + '-outline.png')
+            self.make_outline_from_mask(mask_path, outline_path)
