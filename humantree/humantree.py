@@ -663,7 +663,7 @@ class HumanTree(object):
 
         model.summary()
 
-        model.compile(optimizer=Adam(lr=1e-5),
+        model.compile(optimizer=Adam(lr=1e-5, amsgrad=True),
                       loss='binary_crossentropy',
                       metrics=['binary_crossentropy', 'acc'])
 
