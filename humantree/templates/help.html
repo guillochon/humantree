@@ -17,6 +17,12 @@
 <form action="help" id="help" method="post">
   <input type="hidden" name="mask-num" id="mask-num">
   <input type="hidden" name="iids" id="iids">
+  {% if captcha %}
+  <div class="text-xs-center">
+    <div class="g-recaptcha" data-sitekey="6Ldakl8UAAAAAI77REzQdCDKAEAAu8dNlYadrxsH"  data-callback="enableBtn" data-expired-callback="disableBtn">
+    </div>
+  </div>
+  {% endif %}
   <p class="centered" id="assess">
     This mask looks:
     <button type="submit" class="btn good" name="good" id="good" disabled>G&#818;ood</button>
@@ -29,12 +35,6 @@
     </div>
     <div class="error" {% if success %} style="display:none" {% endif %}>Captcha not valid!</div>
   </p>
-  {% if captcha %}
-  <div class="text-xs-center">
-    <div class="g-recaptcha" data-sitekey="6Ldakl8UAAAAAI77REzQdCDKAEAAu8dNlYadrxsH"  data-callback="enableBtn" data-expired-callback="disableBtn">
-    </div>
-  </div>
-  {% endif %}
 </form>
 
 <p>Our training set is based upon the <a href="http://cambridgegis.github.io/gisdata.html">Cambridge GIS</a> (collected in 2014 with LIDAR) and present-day (~2018) <a href="https://maps.google.com">Google Maps</a> imagery, which means that there are mismatches between regions marked as tree/not tree as individual trees have either been added or removed in the past 4 years. Additionally, the original training set itself has some malformed masks that need to be identified.</p>
