@@ -51,6 +51,7 @@ def help():
 
     response = None
     success = True
+    iids = []
     if request.method == 'POST':
         if captcha:
             response = request.form.get('g-recaptcha-response')
@@ -78,13 +79,20 @@ def help():
                 votes[id]['bad'] += 1
             with open(votes_path, 'w') as f:
                 json.dump(votes, f)
+            iids = request.form.get('iids', '').split(',')
 
     captcha = ip not in ips
 
-    ids = ','.join(sorted([x.split('/')[
-        -1].split('-')[0] for x in glob('parcels/*-outline.png')]))
+    ids = sorted([x.split('/')[
+        -1].split('-')[0] for x in glob('parcels/*-outline.png')])
+    qids = sorted(['-'.join(x.split('/')[
+        -1].split('-')[0:-1]) for x in glob('queries/*-outline.png')])
+    ids = ','.join([x for x in ids if x not in iids])
+    qids = ','.join([x for x in qids if x not in iids])
+    iids = ','.join(iids)
     return render_template(
-        'help.html', ids=ids, captcha=captcha, success=success)
+        'help.html', ids=ids, qids=qids, iids=iids, captcha=captcha,
+        success=success)
 
 
 @app.route('/about')
