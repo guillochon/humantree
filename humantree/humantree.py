@@ -42,6 +42,7 @@ class HumanTree(object):
     _SBUFF = 2.e-6  # buffer size for smoothing tree regions
     _POINT_BUFF = 2.e-5
     _DEFAULT_SQFT = 1000.0
+    _DEFAULT_LOT_SQFT = 3000.0
     _REGIONS = {
         'ENC': ['IL', 'IN', 'MI', 'OH', 'WI'],
         'WNC': ['IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD'],
@@ -182,16 +183,19 @@ class HumanTree(object):
 
     def get_image(
         self, poly, mlat, mlon, zoom=None, imgsize=None, fname=None,
-            target_dir=None):
+            target_dir=None, address=''):
         """Get satellite image from polygon boundaries."""
         import uuid
+        import random
 
         zoom = self._ZOOM if zoom is None else zoom
         imgsize = self._IMGSIZE if imgsize is None else imgsize
         target_dir = 'parcels' if target_dir is None else target_dir
 
         if fname is None:
-            fname = str(uuid.uuid4())
+            rd = random.Random()
+            rd.seed(address.lower().strip())
+            fname = str(uuid.UUID(int=rd.getrandbits(128)))
 
         tdir = os.path.join(self._dir_name, '..', target_dir)
         if not os.path.isdir(tdir):
@@ -224,10 +228,13 @@ class HumanTree(object):
         if poly is None:
             poly = pt.buffer(self._POINT_BUFF)
         bound_poly, mlat, mlon, __ = self.get_bound_poly(poly)
-        fpath = self.get_image(bound_poly, mlat, mlon, target_dir='queries')
+        fpath = self.get_image(
+            bound_poly, mlat, mlon, address=address, target_dir='queries')
         pic = misc.imread(fpath)
-        with open(fpath.replace('.png', '.json'), 'w') as f:
-            json.dump(pic.tolist(), f, separators=(',', ':'), indent=0)
+        json_path = fpath.replace('.png', '.json')
+        if not os.path.exists(json_path):
+            with open(json_path, 'w') as f:
+                json.dump(pic.tolist(), f, separators=(',', ':'), indent=0)
         return fpath
 
     def make_mask_from_polys(self, polys, fpath, bound_poly=None, bp=None,
@@ -442,7 +449,7 @@ class HumanTree(object):
         except Exception:
             sqft = None
         if sqft is None:
-            sqft = self._DEFAULT_SQFT
+            sqft = self._DEFAULT_LOT_SQFT
         return 0.3048 * np.sqrt(2.0 / np.pi * sqft)
 
     def get_zill_radius(self, zill):
@@ -452,7 +459,7 @@ class HumanTree(object):
         except Exception:
             sqft = None
         if sqft is None:
-            sqft = self._DEFAULT_SQFT
+            sqft = self._DEFAULT_LOT_SQFT
         return 0.3048 * np.sqrt(2.0 / np.pi * sqft)
 
     def get_updated_prop_details(self, zpid):

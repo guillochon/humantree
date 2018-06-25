@@ -124,8 +124,12 @@ def metrics():
     from scipy.misc import imsave
     from rasterio.features import shapes
     from shapely.geometry import shape
+    import warnings
 
     global ht
+
+    warnings.filterwarnings(
+        "ignore", message="Dataset has no geotransform set")
 
     if request.method == 'POST':
         image = request.form.get('image')
@@ -147,9 +151,10 @@ def metrics():
         data = np.reshape(data, (n, n))
 
         mask_path = os.path.join(app.root_path, 'queries', head + '-mask.png')
-        imsave(mask_path,
-               np.repeat((data * 255)[..., np.newaxis], 3, axis=2).astype(
-                   np.uint8))
+        if not os.path.exists(mask_path):
+            imsave(mask_path,
+                   np.repeat((data * 255)[..., np.newaxis], 3, axis=2).astype(
+                       np.uint8))
 
         # Make outline image from mask
         with rasterio.open(mask_path) as src:
@@ -163,7 +168,9 @@ def metrics():
         shapes = [shape(x['geometry']) for x in list(results)]
         outline_path = os.path.join(
             app.root_path, 'queries', head + '-outline.png')
-        ht.make_mask_from_polys(shapes, outline_path, buff=1.0, reverse_y=True)
+        if not os.path.exists(outline_path):
+            ht.make_mask_from_polys(
+                shapes, outline_path, buff=0.25, reverse_y=True)
 
         a, b = int(np.floor(data.shape[0] / 2.0)
                    ), int(np.floor(data.shape[1] / 2.0))
