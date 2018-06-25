@@ -27,14 +27,12 @@ function predict(imageData, propRadius) {
     std = tf.scalar(50.741535);
     img = img.sub(mean).div(std);
     img = img.reshape([1, 512, 512, 3]);
-	console.log(tf.memory().numBytes);
     img = this.model.predict(img).mul(
       tf.scalar(255.0)).dataSync();
 
     const output = Uint8ClampedArray.from(img);
 
     drawImage(output, propRadius);
-	console.log(tf.memory().numBytes);
 
     return output;
   });
@@ -47,8 +45,8 @@ function drawImage(image, propRadius) {
     for (var x = 0; x < width; x++) {
       var ipos = (y * width + x);
       var pos = ipos * 4; // position in buffer based on x and y
-	  var bit = image[ipos] > 127 ? 0 : 255;
-	  var alp = image[ipos] > 127 ? 0 : 100;
+      var bit = image[ipos] > 127 ? 0 : 255;
+      var alp = image[ipos] > 127 ? 0 : 100;
       buffer[pos] = bit; // some R value [0, 255]
       buffer[pos + 1] = 0; // some G value
       buffer[pos + 2] = bit; // some B value
@@ -58,7 +56,7 @@ function drawImage(image, propRadius) {
 
   // create off-screen canvas element
   var canvas = document.createElement('canvas'),
-  ctx = canvas.getContext('2d');
+    ctx = canvas.getContext('2d');
 
   canvas.width = width;
   canvas.height = height;
@@ -74,7 +72,8 @@ function drawImage(image, propRadius) {
 
   ctx.beginPath();
   // WARNING: 512/70 eyeballed, need exact calc.
-  ctx.arc(width/2, height/2, 512.0 / 70.0 * propRadius, 0.0, 2.0*Math.PI);
+  ctx.arc(width / 2, height / 2, 512.0 / 70.0 * propRadius,
+    0.0, 2.0 * Math.PI);
   ctx.lineWidth = 5;
   ctx.setLineDash([5, 5]);
   ctx.strokeStyle = 'yellow';
@@ -93,13 +92,17 @@ function drawImage(image, propRadius) {
   pred.height(400);
 }
 
-function metrics(image) {
+function metrics(image, head) {
   $.ajax({
     url: '/metrics',
     method: 'POST',
     dataType: 'json',
-    data: {'image': image.join(','), 'address': address},
-    success: function (data) {
+    data: {
+      'image': image.join(','),
+      'address': address,
+      'head': head
+    },
+    success: function(data) {
       var savingsKnob = pureknob.createKnob(300, 250, 0.7);
       savingsKnob.setProperty('angleStart', -0.4 * Math.PI);
       savingsKnob.setProperty('angleEnd', 0.4 * Math.PI);
@@ -152,9 +155,9 @@ function metrics(image) {
       if (mets['savings'] > 0.0) {
         met_str += 'Savings from current trees: $' + String((
           mets['savings']).toFixed(0)) + ' per year.<br>'
-	    met_str += 'Savings by adding a large tree: <strong>$' + String((
-	  	  mets['one_tree_savings']).toFixed(1)).replace(
-	  	  /\B(?=(\d{3})+(?!\d))/g, ",") + ' per year</strong>.<br clear=all><br>'
+        met_str += 'Savings by adding a large tree: <strong>$' + String((
+          mets['one_tree_savings']).toFixed(1)).replace(
+          /\B(?=(\d{3})+(?!\d))/g, ",") + ' per year</strong>.<br clear=all><br>'
         savingsKnob.setProperty('valMax', parseFloat(mets['max_savings'].toFixed(0)));
         savingsKnob.setValue(parseFloat(mets['savings'].toFixed(0)));
         savingsKnob.setProperty('excess', mets['one_tree_savings']);
@@ -166,9 +169,9 @@ function metrics(image) {
       met_str += '<div class="stat-summary">'
       met_str += 'Noise abatement from current trees: ' + String((
         mets['noise_abatement']).toFixed(1)) + ' dB.<br>'
-	  met_str += 'Additional abatement by adding a large tree: <strong>' + String((
-	    mets['one_tree_noise']).toFixed(1)).replace(
-	  	/\B(?=(\d{3})+(?!\d))/g, ",") + ' dB</strong>.<br clear=all><br>'
+      met_str += 'Additional abatement by adding a large tree: <strong>' + String((
+        mets['one_tree_noise']).toFixed(1)).replace(
+        /\B(?=(\d{3})+(?!\d))/g, ",") + ' dB</strong>.<br clear=all><br>'
       met_str += '</div>'
       noiseKnob.setProperty('valMax', parseFloat(mets['max_noise_abatement'].toFixed(0)));
       noiseKnob.setValue(parseFloat(mets['noise_abatement'].toFixed(0)));
@@ -180,18 +183,18 @@ function metrics(image) {
         met_str += '<div class="stat-summary">'
         met_str += 'Estimated house value: $' + String((
           mets['house_value']).toFixed(0)).replace(
-            /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
+          /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
         met_str += 'Value increase from present trees: $' + String((
           mets['value_increase']).toFixed(0)).replace(
-            /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
-		met_str += 'Value increase by adding a large tree: <strong>$' + String((
-		  mets['one_tree_value']).toFixed(0)).replace(
-            /\B(?=(\d{3})+(?!\d))/g, ",") + '</strong>.'
+          /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
+        met_str += 'Value increase by adding a large tree: <strong>$' + String((
+          mets['one_tree_value']).toFixed(0)).replace(
+          /\B(?=(\d{3})+(?!\d))/g, ",") + '</strong>.'
         met_str += '</div>'
         valueKnob.setProperty('valMax',
-            parseFloat((mets['max_value_increase'] / 1000.0).toFixed(0)));
+          parseFloat((mets['max_value_increase'] / 1000.0).toFixed(0)));
         valueKnob.setValue(
-            parseFloat((mets['value_increase'] / 1000.0).toFixed(0)));
+          parseFloat((mets['value_increase'] / 1000.0).toFixed(0)));
         valueKnob.setProperty('excess', mets['one_tree_value'] / 1000.0);
         valueKnob.setProperty('excessLabel', '+1🌳');
       }
@@ -224,19 +227,19 @@ function handleProcess(response) {
   sat.attr("src", "queries/" + path);
   // sat.width(width / 2);
   // sat.height(height / 2);
+  var head = path.split('.')[0];
   $.ajax({
     url: "queries/" + path.replace('.png', '.json'),
     dataType: 'json',
-    success: function (json) {
+    success: function(json) {
       img = predict(json, radius);
-      console.log(tf.memory().numBytes);
       document.getElementById('analyzer').style.display = "none"
       document.getElementById('imwrap').style.display = "block"
     },
-    complete: function () {
+    complete: function() {
       document.getElementById('metrizer').style.display = "block"
-	  document.getElementById('btn').disabled = false;
-      metrics(img);
+      document.getElementById('btn').disabled = false;
+      metrics(img, head);
     }
   });
   // img = $.getJSON("queries/" + path.replace(
@@ -252,7 +255,7 @@ $(function() {
   $('#process').submit(function(e) {
     e.preventDefault(); // prevent the form from 'submitting'
     address = document.getElementById('address').value
-	document.getElementById('btn').disabled = true;
+    document.getElementById('btn').disabled = true;
     document.getElementById('invalid-address').style.display = 'none'
     document.getElementById('analyzer').style.display = "block"
     document.getElementById('imwrap').style.display = "none"

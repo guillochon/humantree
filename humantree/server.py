@@ -1,11 +1,11 @@
 """Basic Flask server for HumanTree.org."""
-import os
 import json
 import logging
+import os
 
 import numpy as np
 
-from flask import Flask, render_template, send_from_directory, request, jsonify
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from humantree import HumanTree
 
 app = Flask(__name__)
@@ -51,6 +51,7 @@ def help():
 
     response = None
     success = True
+    iids = []
     if request.method == 'POST':
         if captcha:
             response = request.form.get('g-recaptcha-response')
@@ -78,13 +79,20 @@ def help():
                 votes[id]['bad'] += 1
             with open(votes_path, 'w') as f:
                 json.dump(votes, f)
+            iids = request.form.get('iids', '').split(',')
 
     captcha = ip not in ips
 
-    ids = ','.join(sorted([x.split('/')[
-        -1].split('-')[0] for x in glob('parcels/*-outline.png')]))
+    ids = sorted([x.split('/')[
+        -1].split('-')[0] for x in glob('parcels/*-outline.png')])
+    qids = sorted(['-'.join(x.split('/')[
+        -1].split('-')[0:-1]) for x in glob('queries/*-outline.png')])
+    ids = ','.join([x for x in ids if x not in iids])
+    qids = ','.join([x for x in qids if x not in iids])
+    iids = ','.join(iids)
     return render_template(
-        'help.html', ids=ids, captcha=captcha, success=success)
+        'help.html', ids=ids, qids=qids, iids=iids, captcha=captcha,
+        success=success)
 
 
 @app.route('/about')
@@ -120,11 +128,21 @@ def process():
 @app.route('/metrics', methods=['GET', 'POST'])
 def metrics():
     """Return metrics."""
+    import rasterio
+    from scipy.misc import imsave
+    from rasterio.features import shapes
+    from shapely.geometry import shape
+    import warnings
+
     global ht
+
+    warnings.filterwarnings(
+        "ignore", message="Dataset has no geotransform set")
 
     if request.method == 'POST':
         image = request.form.get('image')
         address = request.form.get('address')
+        head = request.form.get('head')
         data = np.array([float(x) for x in image.split(',')])
 
         try:
@@ -139,12 +157,36 @@ def metrics():
 
         n = int(np.round(np.sqrt(data.shape[0])))
         data = np.reshape(data, (n, n))
-        a, b = int(np.floor(data.shape[0] / 2.0)), int(np.floor(data.shape[1] / 2.0))
+
+        mask_path = os.path.join(app.root_path, 'queries', head + '-mask.png')
+        if not os.path.exists(mask_path):
+            imsave(mask_path,
+                   np.repeat((data * 255)[..., np.newaxis], 3, axis=2).astype(
+                       np.uint8))
+
+        # Make outline image from mask
+        with rasterio.open(mask_path) as src:
+            image = src.read(1)
+            mask = image != 255
+            results = (
+                {'properties': {'raster_val': v}, 'geometry': s}
+                for i, (s, v)
+                in enumerate(
+                    shapes(image, mask=mask, transform=src.affine)))
+        shapes = [shape(x['geometry']) for x in list(results)]
+        outline_path = os.path.join(
+            app.root_path, 'queries', head + '-outline.png')
+        if not os.path.exists(outline_path):
+            ht.make_mask_from_polys(
+                shapes, outline_path, buff=0.25, reverse_y=True)
+
+        a, b = int(np.floor(data.shape[0] / 2.0)
+                   ), int(np.floor(data.shape[1] / 2.0))
         # Warning: 70 was eyeballed, need to get exact scale!
         r = int(np.round(n * radius / 70.0))
 
-        y, x = np.ogrid[-a:n-a, -b:n-b]
-        mask = x*x + y*y <= r*r
+        y, x = np.ogrid[-a:n - a, -b:n - b]
+        mask = x * x + y * y <= r * r
 
         full = np.ones((n, n))[mask]
         fraction = np.sum(1 - data[mask]) / np.sum(full)
@@ -164,13 +206,14 @@ def metrics():
         house_value = 0.0
         value_increase = 0.0
         max_value_increase = 0.0
-        one_tree = 0.0
         one_tree_value = 0.0
         one_tree_frac = 0.05
-        sqft = 1000.0
+        sqft = ht._DEFAULT_SQFT
 
         if zill is not None:
             sqft = ht.get_sqft(zill)
+            if sqft is None:
+                sqft = ht._DEFAULT_SQFT
 
             one_tree_frac = 0.05
 
@@ -182,7 +225,7 @@ def metrics():
 
         # Gross approximation: kwh usage = 0.5 * dd.
         if hdd is not None and cdd is not None and eprice is not None:
-            cost = 0.6 * (hdd + cdd) * eprice * sqft / 1000.0
+            cost = 0.6 * (hdd + cdd) * eprice * sqft / ht._DEFAULT_SQFT
         else:
             cost = 0.0
 
@@ -200,7 +243,8 @@ def metrics():
 
         max_noise_abatement = 10
         noise_abatement = max_noise_abatement * np.log10(1.0 + 9.0 * fraction)
-        one_tree_noise = max_noise_abatement * np.log10(1.0 + 9.0 * one_tree_frac)
+        one_tree_noise = max_noise_abatement * np.log10(
+            1.0 + 9.0 * one_tree_frac)
 
         return json.dumps({
             'fraction': fraction,
@@ -238,7 +282,7 @@ def before_request():
     app.jinja_env.cache = {}
 
 
-ht = HumanTree(load_canopy_polys=False)
+ht = HumanTree(load_canopy_polys=False, logger=logger)
 if __name__ == '__main__':
     app.before_request(before_request)
     app.run_server(debug=True)

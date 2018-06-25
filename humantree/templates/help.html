@@ -3,6 +3,8 @@
 <script src="{{ url_for('static', filename='validate.js') }}"></script>
 <script src='https://www.google.com/recaptcha/api.js'></script>
 <meta property="ids" content="{{ ids }}" />
+<meta property="qids" content="{{ qids }}" />
+<meta property="iids" content="{{ iids }}" />
 <meta property="captcha" content="{{ captcha }}" />
 {% endblock %}
 {% block content %}
@@ -13,6 +15,7 @@
 </div>
 <form action="help" id="help" method="post">
   <input type="hidden" name="mask-num" id="mask-num">
+  <input type="hidden" name="iids" id="iids">
   <p class="centered" id="assess">
     This mask looks:
     <button type="submit" class="btn good" name="good" id="good" disabled>G&#818;ood</button>

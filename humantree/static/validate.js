@@ -16,12 +16,27 @@ document.onkeyup = function(e) {
 };
 
 function insertSrcs() {
-  var ids = document.head.querySelector("[property=ids]").content.split(',');
-  var i = Math.floor(Math.random() * ids.length);
+  // Flip a coin to see if we validate queries or training set.
+  var tids = document.head.querySelector(
+    "[property=ids]").content.split(',');
+  var qids = document.head.querySelector(
+    "[property=qids]").content.split(',');
+  if (Math.random() > 0.5 || isEmpty(qids)) {
+    var dir = 'parcels';
+    var ids = tids;
+  } else {
+    var dir = 'queries';
+    var ids = qids;
+  }
+  var iids = document.head.querySelector("[property=iids]").content;
 
-  document.getElementById('satellite').src = 'parcels/' + ids[i] + '.png';
-  document.getElementById('mask').src = 'parcels/' + ids[i] + '-outline.png';
-  document.getElementById('mask-num').value = ids[i];
+  var i = Math.floor(Math.random() * ids.length);
+  var idi = ids[i];
+  document.getElementById('satellite').src = dir + '/' + idi + '.png';
+  document.getElementById('mask').src = dir + '/' + idi + '-outline.png';
+  document.getElementById('mask-num').value = idi;
+  document.getElementById('iids').value = (
+    iids === '' ? idi : (iids + ',' + idi));
 
   load_time = Date.now();
   var captcha = document.head.querySelector("[property=captcha]").content;
