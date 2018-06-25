@@ -104,10 +104,10 @@ def about():
     return render_template('about.html')
 
 
-@app.route('/method')
-def method():
+@app.route('/presentation')
+def presentation():
     """Return the method page."""
-    return render_template('method.html')
+    return render_template('presentation.html')
 
 
 @app.route('/process', methods=['GET', 'POST'])

@@ -47,7 +47,7 @@ def main():
         dest='tasks',
         type=str,
         default=['collect', 'train', 'predict'],
-        nargs='*',
+        nargs='+',
         help='Tasks to perform.')
 
     parser.add_argument(
