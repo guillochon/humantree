@@ -41,6 +41,7 @@ class HumanTree(object):
     _DPI = 100.0
     _SBUFF = 2.e-6  # buffer size for smoothing tree regions
     _POINT_BUFF = 2.e-5
+    _DEFAULT_SQFT = 1000.0
     _REGIONS = {
         'ENC': ['IL', 'IN', 'MI', 'OH', 'WI'],
         'WNC': ['IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD'],
@@ -59,6 +60,8 @@ class HumanTree(object):
         import googlemaps
         import zillow
         from shapely.geometry import Polygon
+
+        self._p = kwargs.get('logger')
 
         load_canopy_polys = kwargs.get('load_canopy_polys', True)
 
@@ -121,6 +124,13 @@ class HumanTree(object):
             cps = self._canopy_polygons.extend([a for b in [
                 list(x.geoms) if 'multi' in str(type(
                     x)).lower() else [x] for x in cps] for a in b])
+
+    def prt(self, txt):
+        """Print using the right printer function."""
+        if self._p is None:
+            print(txt)
+        else:
+            self._p.info(txt)
 
     def download_file(self, url, fname=None):
         """Download file if it doesn't exist locally."""
@@ -213,7 +223,6 @@ class HumanTree(object):
             return None
         if poly is None:
             poly = pt.buffer(self._POINT_BUFF)
-        print(poly.exterior.coords, pt.coords)
         bound_poly, mlat, mlon, __ = self.get_bound_poly(poly)
         fpath = self.get_image(bound_poly, mlat, mlon, target_dir='queries')
         pic = misc.imread(fpath)
@@ -221,11 +230,90 @@ class HumanTree(object):
             json.dump(pic.tolist(), f, separators=(',', ':'), indent=0)
         return fpath
 
-    def get_poly_images(self, limit=None, purge=False):
-        """Retrieve images of all polygons on Google Maps."""
+    def make_mask_from_polys(self, polys, fpath, bound_poly=None, bp=None,
+                             buff=None, reverse_y=False):
         from shapely.ops import cascaded_union
         from matplotlib.patches import Polygon as MPPoly
+        from shapely.geometry import Polygon
         from matplotlib.collections import PatchCollection
+        import matplotlib.pyplot as plt
+
+        if buff is None:
+            buff = self._SBUFF
+
+        if bound_poly is None:
+            bp = [(0, 0), (self._SCALED_SIZE, self._SCALED_SIZE)]
+            bound_poly = Polygon(
+                [bp[0], (bp[1][0], bp[0][1]), bp[1], (bp[0][0], bp[1][1])])
+
+        ipolys = []
+        for cp in polys:
+            if cp.disjoint(bound_poly):
+                continue
+            try:
+                ipolys.append(cp.intersection(bound_poly).buffer(
+                    buff).buffer(buff).buffer(buff).buffer(buff))
+            except Exception as ee:
+                print(ee)
+
+        merged_polys = cascaded_union(ipolys)
+
+        if 'Multi' not in str(type(merged_polys)) and not isinstance(
+                merged_polys, list):
+            merged_polys = [merged_polys]
+
+        # print([x[0].exterior.coords for x in merged_polys])
+
+        fig = plt.figure()
+        ax = fig.gca()
+        plt.axis('off')
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        patches = [MPPoly(
+            [[y[0], self._SCALED_SIZE - y[
+                1]] for y in x.exterior.coords
+             ]) for x in merged_polys if hasattr(x, 'exterior')]
+        if 'mask' in fpath:
+            pc = PatchCollection(
+                patches, alpha=1, facecolors='black',
+                edgecolors='none', antialiased=False)
+            plt.gray()
+        else:
+            pc = PatchCollection(
+                patches, facecolors=(1, 0, 1, 0.2),
+                edgecolors='magenta', antialiased=True,
+                linewidth=4)
+        ax.autoscale_view(True, True, True)
+        ax.add_collection(pc)
+        ax.set_xlim(bp[0][0], bp[1][0])
+        ax.set_ylim(bp[0][1], bp[1][1])
+
+        fig.subplots_adjust(
+            bottom=0, left=0, top=self._SCALED_SIZE / self._DPI,
+            right=self._SCALED_SIZE / self._DPI)
+        fig.set_size_inches(1, 1)
+        if 'mask' in fpath:
+            plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
+                        pad_inches=0)
+        else:
+            plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
+                        pad_inches=0, transparent=True)
+        plt.close()
+
+        # If image is wrong size
+        pic = misc.imread(fpath)
+        shape = pic.shape
+        if (shape[0] != self._SCALED_SIZE or
+                shape[1] != self._SCALED_SIZE):
+            dx = (shape[0] - self._SCALED_SIZE) / 2.0
+            dy = (shape[1] - self._SCALED_SIZE) / 2.0
+            dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
+            dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
+            npic = pic[dxm:-dxp, dym:-dyp]
+            misc.imsave(fpath, npic)
+
+    def get_poly_images(self, limit=None, purge=False):
+        """Retrieve images of all polygons on Google Maps."""
         import matplotlib.pyplot as plt
         plt.switch_backend('agg')
 
@@ -266,70 +354,8 @@ class HumanTree(object):
                 '.png') for suffix in ['mask', 'outline']]
             for fpath in fpaths:
                 if not os.path.exists(fpath):
-                    ipolys = []
-                    success_count = 0
-                    for cp in self._canopy_polygons:
-                        if cp.disjoint(bound_poly):
-                            continue
-                        try:
-                            ipolys.append(cp.intersection(bound_poly).buffer(
-                                self._SBUFF).buffer(self._SBUFF).buffer(
-                                    self._SBUFF).buffer(self._SBUFF))
-                        except Exception as ee:
-                            print(ee)
-                        else:
-                            success_count += 1
-
-                    merged_polys = cascaded_union(ipolys)
-
-                    if 'Multi' not in str(type(merged_polys)):
-                        merged_polys = [merged_polys]
-
-                    fig = plt.figure()
-                    ax = fig.gca()
-                    plt.axis('off')
-                    ax.get_xaxis().set_visible(False)
-                    ax.get_yaxis().set_visible(False)
-                    patches = [MPPoly(
-                        x.exterior.coords) for x in merged_polys if hasattr(
-                            x, 'exterior')]
-                    if 'mask' in fpath:
-                        pc = PatchCollection(
-                            patches, alpha=1, facecolors='black',
-                            edgecolors='none', antialiased=False)
-                        plt.gray()
-                    else:
-                        pc = PatchCollection(
-                            patches, facecolors=(1, 0, 1, 0.2),
-                            edgecolors='magenta', antialiased=True,
-                            linewidth=4)
-                    ax.autoscale_view(True, True, True)
-                    ax.add_collection(pc)
-                    ax.set_xlim(bp[0][0], bp[1][0])
-                    ax.set_ylim(bp[0][1], bp[1][1])
-                    fig.subplots_adjust(
-                        bottom=0, left=0, top=self._SCALED_SIZE / self._DPI,
-                        right=self._SCALED_SIZE / self._DPI)
-                    fig.set_size_inches(1, 1)
-                    if 'mask' in fpath:
-                        plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
-                                    pad_inches=0)
-                    else:
-                        plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
-                                    pad_inches=0, transparent=True)
-                    plt.close()
-
-                    # If image is wrong size
-                    pic = misc.imread(fpath)
-                    shape = pic.shape
-                    if (shape[0] != self._SCALED_SIZE or
-                            shape[1] != self._SCALED_SIZE):
-                        dx = (shape[0] - self._SCALED_SIZE) / 2.0
-                        dy = (shape[1] - self._SCALED_SIZE) / 2.0
-                        dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
-                        dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
-                        npic = pic[dxm:-dxp, dym:-dyp]
-                        misc.imsave(fpath, npic)
+                    self.make_mask_from_polys(
+                        self._canopy_polygons, fpath, bound_poly, bp)
 
             self.get_image(bound_poly, mlat, mlon, fname=fname)
 
@@ -390,34 +416,51 @@ class HumanTree(object):
         return self._zillow_client.GetDeepSearchResults(
             self._zillow_key, zadd, zzip, True)
 
-    def get_sqft(self, zill):
+    def get_sqft(self, zill, lot=False):
         """Get square feet from a zillow object."""
-        sqft = (
-            float(
-                zill.extended_data.finished_sqft) if (
-                    zill.has_extended_data and
-                    zill.extended_data.finished_sqft is not None)
-            else 1000.0)
+        if not zill.has_extended_data:
+            return None
+        sqft = None
+        if lot:
+            sqft = (
+                float(
+                    zill.extended_data.lot_size_sqft) if (
+                        zill.extended_data.lot_size_sqft is not None)
+                else None)
+        else:
+            sqft = (
+                float(
+                    zill.extended_data.finished_sqft) if (
+                        zill.extended_data.finished_sqft is not None)
+                else None)
         return sqft
 
     def get_address_radius(self, address):
+        """Get effective radius of an address."""
         try:
             zill = self.get_zillow(address)
-            sqft = self.get_sqft(zill)
+            sqft = self.get_sqft(zill, lot=True)
         except Exception:
-            sqft = 1000.0
-        return 0.3048 * 2.0 * np.sqrt(sqft)
+            sqft = None
+        if sqft is None:
+            sqft = self._DEFAULT_SQFT
+        return 0.3048 * np.sqrt(2.0 / np.pi * sqft)
 
     def get_zill_radius(self, zill):
+        """Get effective radius from a `Zillow` object."""
         try:
-            sqft = self.get_sqft(zill)
+            sqft = self.get_sqft(zill, lot=True)
         except Exception:
-            sqft = 1000.0
-        return 0.3048 * 2.0 * np.sqrt(sqft)
+            sqft = None
+        if sqft is None:
+            sqft = self._DEFAULT_SQFT
+        return 0.3048 * np.sqrt(2.0 / np.pi * sqft)
 
     def get_updated_prop_details(self, zpid):
+        """Get extra details on properties provided by Zillow users."""
         import xmltodict
         from zillow.place import Place
+        from zillow.error import ZillowError
         url = 'https://www.zillow.com/webservice/GetUpdatedPropertyDetails.htm'
         parameters = {
             'zws-id': self._zillow_key,
@@ -431,9 +474,12 @@ class HumanTree(object):
         place = Place()
         try:
             place.set_data(xmltodict_data.get(
-                'SearchResults:searchresults', None)['response']['results']['result'])
-        except:
-            raise ZillowError({'message': "Zillow did not return a valid response: %s" % data})
+                'SearchResults:searchresults',
+                None)['response']['results']['result'])
+        except Exception:
+            raise ZillowError(
+                {'message':
+                 "Zillow did not return a valid response: %s" % data})
 
         return place
 
