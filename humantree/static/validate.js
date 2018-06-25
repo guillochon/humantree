@@ -19,9 +19,10 @@ function insertSrcs() {
   // Flip a coin to see if we validate queries or training set.
   var tids = document.head.querySelector(
     "[property=ids]").content.split(',');
-  var qids = document.head.querySelector(
-    "[property=qids]").content.split(',');
-  if ((Math.random() > 0.5) || (!qids.length)) {
+  var qids_str = document.head.querySelector(
+    "[property=qids]").content;
+  var qids = qids_str.split(',');
+  if ((Math.random() > 0.5) || (qids_str == '')) {
     var dir = 'parcels';
     var ids = tids;
   } else {
