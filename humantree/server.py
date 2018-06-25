@@ -115,7 +115,10 @@ def process():
     if request.method == 'POST':
         address = request.form.get('address')
         logger.info(address)
-        fpath = ht.get_image_from_address(address)
+        try:
+            fpath = ht.get_image_from_address(address)
+        except Exception:
+            return jsonify({})
         radius = ht.get_address_radius(address)
         if fpath is not None:
             return jsonify({
