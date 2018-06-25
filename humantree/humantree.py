@@ -262,8 +262,6 @@ class HumanTree(object):
                 merged_polys, list):
             merged_polys = [merged_polys]
 
-        # print([x[0].exterior.coords for x in merged_polys])
-
         fig = plt.figure()
         ax = fig.gca()
         plt.axis('off')
@@ -272,7 +270,8 @@ class HumanTree(object):
         patches = [MPPoly(
             [[y[0], self._SCALED_SIZE - y[
                 1]] for y in x.exterior.coords
-             ]) for x in merged_polys if hasattr(x, 'exterior')]
+             ] if reverse_y else
+            x.exterior.coords) for x in merged_polys if hasattr(x, 'exterior')]
         if 'mask' in fpath:
             pc = PatchCollection(
                 patches, alpha=1, facecolors='black',
