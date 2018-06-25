@@ -244,6 +244,7 @@ class HumanTree(object):
         from shapely.geometry import Polygon
         from matplotlib.collections import PatchCollection
         import matplotlib.pyplot as plt
+        plt.switch_backend('agg')
 
         if buff is None:
             buff = self._SBUFF
