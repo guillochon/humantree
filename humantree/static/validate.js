@@ -21,7 +21,7 @@ function insertSrcs() {
     "[property=ids]").content.split(',');
   var qids = document.head.querySelector(
     "[property=qids]").content.split(',');
-  if (Math.random() > 0.5 || isEmpty(qids)) {
+  if ((Math.random() > 0.5) || (!qids.length)) {
     var dir = 'parcels';
     var ids = tids;
   } else {
