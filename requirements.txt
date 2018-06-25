@@ -8,3 +8,4 @@ googlemaps
 shapely
 EIA_python
 python-zillow
+rasterio
