@@ -7,11 +7,10 @@ from glob import glob
 import numpy as np
 import requests
 from scipy import misc
-from tqdm import tqdm
-
 # from pypolyline.util import encode_coordinates
 from skimage.io import imsave
 from skimage.transform import resize
+from tqdm import tqdm
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -19,7 +18,10 @@ pp = pprint.PrettyPrinter(indent=4)
 class HumanTree(object):
     """Count trees, make suggestions where new trees should be added."""
 
+    # Math.
     _TO_RAD = np.pi / 180
+
+    # Geo-related variables.
     _PARCELS_URL = (
         "https://raw.githubusercontent.com/cambridgegis/cambridgegis_data"
         "/master/Assessing/FY2018/FY2018_Parcels/"
@@ -33,16 +35,23 @@ class HumanTree(object):
         "center={},{}&zoom={}&maptype=satellite&size={}x{}"
         "&key={}")
     _LAT_OFFSET = 2.e-5  # The LIDAR data is slightly offset from the images.
-    _SMOOTH = 1.0
-    _SCALED_SIZE = 512
     _ZOOM = 20
-    _IMGSIZE = 640
+    _INPUT_IMG_SIZE = 640
+    _OUTPUT_IMG_SIZE = 512
     _CROPPIX = 20
-    _BATCH_SIZE = 8
     _DPI = 100.0
     _SBUFF = 2.e-6  # buffer size for smoothing tree regions
     _POINT_BUFF = 2.e-5
 
+    _SMOOTH = 1.0
+
+    # UNet variables.
+    _UNET_N = 256
+    _UNET_LEVELS = 4
+    _BATCH_SIZE = 8
+    _TRAIN_EPOCHS = 1
+
+    # Property metric variables.
     _DEFAULT_SQFT = 1000.0
     _DEFAULT_LOT_SQFT = 3000.0
     _REGIONS = {
@@ -108,7 +117,7 @@ class HumanTree(object):
             self._zillow_key = f.readline().strip()
         self._zillow_client = zillow.ValuationApi()
 
-        self._cropsize = self._IMGSIZE - 2 * self._CROPPIX
+        self._cropsize = self._INPUT_IMG_SIZE - 2 * self._CROPPIX
 
         # Load canopy data.
         if not load_canopy_polys:
@@ -201,7 +210,7 @@ class HumanTree(object):
         import random
 
         zoom = self._ZOOM if zoom is None else zoom
-        imgsize = self._IMGSIZE if imgsize is None else imgsize
+        imgsize = self._INPUT_IMG_SIZE if imgsize is None else imgsize
         target_dir = 'parcels' if target_dir is None else target_dir
 
         if fname is None:
@@ -223,7 +232,7 @@ class HumanTree(object):
             npic = pic[self._CROPPIX:-self._CROPPIX,
                        self._CROPPIX:-self._CROPPIX]
             npic = resize(
-                npic, (self._SCALED_SIZE, self._SCALED_SIZE, 3),
+                npic, (self._OUTPUT_IMG_SIZE, self._OUTPUT_IMG_SIZE, 3),
                 preserve_range=False, mode='constant')
             misc.imsave(fpath, npic)
 
@@ -262,7 +271,7 @@ class HumanTree(object):
             buff = self._SBUFF
 
         if bound_poly is None:
-            bp = [(0, 0), (self._SCALED_SIZE, self._SCALED_SIZE)]
+            bp = [(0, 0), (self._OUTPUT_IMG_SIZE, self._OUTPUT_IMG_SIZE)]
             bound_poly = Polygon(
                 [bp[0], (bp[1][0], bp[0][1]), bp[1], (bp[0][0], bp[1][1])])
 
@@ -288,8 +297,7 @@ class HumanTree(object):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
         patches = [MPPoly(
-            [[y[0], self._SCALED_SIZE - y[
-                1]] for y in x.exterior.coords
+            [[y[0], self._OUTPUT_IMG_SIZE - y[1]] for y in x.exterior.coords
              ] if reverse_y else
             x.exterior.coords) for x in merged_polys if hasattr(x, 'exterior')]
         if 'mask' in fpath:
@@ -308,8 +316,8 @@ class HumanTree(object):
         ax.set_ylim(bp[0][1], bp[1][1])
 
         fig.subplots_adjust(
-            bottom=0, left=0, top=self._SCALED_SIZE / self._DPI,
-            right=self._SCALED_SIZE / self._DPI)
+            bottom=0, left=0, top=self._OUTPUT_IMG_SIZE / self._DPI,
+            right=self._OUTPUT_IMG_SIZE / self._DPI)
         fig.set_size_inches(1, 1)
         if 'mask' in fpath:
             plt.savefig(fpath, bbox_inches='tight', dpi=self._DPI,
@@ -322,10 +330,10 @@ class HumanTree(object):
         # If image is wrong size
         pic = misc.imread(fpath)
         shape = pic.shape
-        if (shape[0] != self._SCALED_SIZE or
-                shape[1] != self._SCALED_SIZE):
-            dx = (shape[0] - self._SCALED_SIZE) / 2.0
-            dy = (shape[1] - self._SCALED_SIZE) / 2.0
+        if (shape[0] != self._OUTPUT_IMG_SIZE or
+                shape[1] != self._OUTPUT_IMG_SIZE):
+            dx = (shape[0] - self._OUTPUT_IMG_SIZE) / 2.0
+            dy = (shape[1] - self._OUTPUT_IMG_SIZE) / 2.0
             dxm, dxp = int(np.ceil(dx)), int(np.floor(dx))
             dym, dyp = int(np.ceil(dy)), int(np.floor(dy))
             npic = pic[dxm:-dxp, dym:-dyp]
@@ -364,9 +372,10 @@ class HumanTree(object):
         votes = {}
         with open('votes.json', 'r') as f:
             votes = json.load(f)
-        self._blacklist = [int(k) for k, v in votes.items() if (float(v.get(
-            'bad', 0)) / max(v.get('good', 0) + v.get('okay', 0) + v.get(
-                'bad', 0), 1)) >= 0.9]
+        self._blacklist = [int(
+            k[1:]) for k, v in votes.items() if k.startswith('t') and (
+                float(v.get('bad', 0)) / max(v.get('good', 0) + v.get(
+                    'okay', 0) + v.get('bad', 0), 1)) >= 0.9]
         print('Number of blacklisted masks: {}'.format(len(self._blacklist)))
 
         self._train_count = 0
@@ -575,8 +584,12 @@ class HumanTree(object):
         pids = []
         for i in tqdm(indices, desc='Reading images into arrays'):
             image = misc.imread(parcel_paths[i])[:, :, :3]
+            image = resize(
+                image, (self._UNET_N, self._UNET_N, 3)).astype(np.uint8)
             images.append(image)
             mask = misc.imread(mask_paths[i])[:, :, [0]]
+            mask = resize(
+                mask, (self._UNET_N, self._UNET_N, 1)).astype(np.uint8)
             masks.append(mask)
             pids.append(int(parcel_paths[i].split('/')[-1].split('.')[0]))
 
@@ -589,77 +602,41 @@ class HumanTree(object):
         from keras.layers import (Conv2D, Conv2DTranspose, Input, MaxPooling2D,
                                   concatenate, Dropout)
 
-        inputs = Input((self._SCALED_SIZE, self._SCALED_SIZE, 3))
-        # inputs = Input((512, 512, 3))
-        conv1 = Conv2D(32, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(inputs)
-        conv1 = Dropout(0.5)(conv1)
-        conv1 = Conv2D(32, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv1)
-        pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+        inputs = Input((self._UNET_N, self._UNET_N, 3))
+        dlayers = [None for n in range(self._UNET_LEVELS + 1)]
+        dlayers[0] = inputs
+        layer = inputs
+        for n in range(self._UNET_LEVELS):
+            np1 = n + 1
+            m = 32 * 2 ** n
+            dlayers[np1] = Conv2D(
+                m, (3, 3), activation='relu', padding='same',
+                kernel_initializer='he_normal')(layer)
+            dlayers[np1] = Dropout(0.5)(dlayers[np1])
+            dlayers[np1] = Conv2D(
+                m, (3, 3), activation='relu', padding='same',
+                kernel_initializer='he_normal')(dlayers[np1])
+            if n == self._UNET_LEVELS - 1:  # don't pool last layer.
+                break
+            layer = MaxPooling2D(pool_size=(2, 2))(dlayers[np1])
 
-        conv2 = Conv2D(64, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(pool1)
-        conv2 = Dropout(0.5)(conv2)
-        conv2 = Conv2D(64, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv2)
-        pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+        layer = dlayers[-1]
+        for n in range(self._UNET_LEVELS - 1):
+            m = 32 * 2 ** (self._UNET_LEVELS - n - 2)
+            layer = concatenate([Conv2DTranspose(
+                m, (2, 2), strides=(2, 2), padding='same')(
+                    layer), dlayers[self._UNET_LEVELS - n - 1]], axis=3)
+            layer = Conv2D(
+                m, (3, 3), activation='relu', padding='same',
+                kernel_initializer='he_normal')(layer)
+            layer = Dropout(0.5)(layer)
+            layer = Conv2D(
+                m, (3, 3), activation='relu', padding='same',
+                kernel_initializer='he_normal')(layer)
 
-        conv3 = Conv2D(128, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(pool2)
-        conv3 = Dropout(0.5)(conv3)
-        conv3 = Conv2D(128, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv3)
-        pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+        layer = Conv2D(1, (1, 1), activation='sigmoid')(layer)
 
-        conv4 = Conv2D(256, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(pool3)
-        conv4 = Dropout(0.5)(conv4)
-        conv4 = Conv2D(256, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv4)
-        pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-
-        conv5 = Conv2D(512, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(pool4)
-        conv5 = Dropout(0.5)(conv5)
-        conv5 = Conv2D(512, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv5)
-
-        up6 = concatenate([Conv2DTranspose(256, (2, 2), strides=(
-            2, 2), padding='same')(conv5), conv4], axis=3)
-        conv6 = Conv2D(256, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(up6)
-        conv6 = Dropout(0.5)(conv6)
-        conv6 = Conv2D(256, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv6)
-
-        up7 = concatenate([Conv2DTranspose(128, (2, 2), strides=(
-            2, 2), padding='same')(conv6), conv3], axis=3)
-        conv7 = Conv2D(128, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(up7)
-        conv7 = Dropout(0.5)(conv7)
-        conv7 = Conv2D(128, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv7)
-
-        up8 = concatenate([Conv2DTranspose(64, (2, 2), strides=(
-            2, 2), padding='same')(conv7), conv2], axis=3)
-        conv8 = Conv2D(64, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(up8)
-        conv8 = Dropout(0.5)(conv8)
-        conv8 = Conv2D(64, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv8)
-
-        up9 = concatenate([Conv2DTranspose(32, (2, 2), strides=(
-            2, 2), padding='same')(conv8), conv1], axis=3)
-        conv9 = Conv2D(32, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(up9)
-        conv9 = Dropout(0.5)(conv9)
-        conv9 = Conv2D(32, (3, 3), activation='relu',
-                       padding='same', kernel_initializer='he_normal')(conv9)
-
-        conv10 = Conv2D(1, (1, 1), activation='sigmoid')(conv9)
-
-        model = Model(inputs=[inputs], outputs=[conv10])
+        model = Model(inputs=[inputs], outputs=[layer])
 
         model.summary()
 
@@ -672,7 +649,7 @@ class HumanTree(object):
     def preprocess(self, imgs, channels=3, label='images'):
         """Put images in the appropriate format."""
         imgs_p = np.ndarray(
-            (imgs.shape[0], self._SCALED_SIZE, self._SCALED_SIZE, channels),
+            (imgs.shape[0], self._UNET_N, self._UNET_N, channels),
             dtype=np.uint8)
         for i in tqdm(range(
                 imgs.shape[0]), desc='Converting {}'.format(label)):
@@ -728,8 +705,8 @@ class HumanTree(object):
 
         model.fit(
             self._imgs_train, self._imgs_mask_train,
-            batch_size=self._BATCH_SIZE,
-            epochs=50, verbose=1, shuffle=True, validation_split=0.2,
+            batch_size=self._BATCH_SIZE, epochs=self._TRAIN_EPOCHS, verbose=1,
+            shuffle=True, validation_split=0.2,
             # callbacks=[model_checkpoint])
             callbacks=[model_checkpoint, tbCallBack])
 
@@ -746,27 +723,36 @@ class HumanTree(object):
             fractions = (0.0, 1.0)
 
         self.notice('Loading and preprocessing {} data...'.format(kind))
-        imgs_test, masks_test, ids_test = self.get_data(
+        imgs, masks, ids = self.get_data(
             fractions=fractions, use_blacklist=False, limit=limit)
-        imgs_test = self.preprocess(imgs_test, 3)
+        imgs = self.preprocess(imgs, 3)
 
-        imgs_test = imgs_test.astype('float32')
-        imgs_test -= self._imgs_mean
-        imgs_test /= self._imgs_std
+        imgs = imgs.astype('float32')
+        imgs -= self._imgs_mean
+        imgs /= self._imgs_std
 
         self.notice('Loading saved weights...')
         model.load_weights('weights.h5')
 
         self.notice('Predicting masks on test data...')
-        imgs_mask_test = model.predict(
-            imgs_test, verbose=1, batch_size=self._BATCH_SIZE)
-        np.save('imgs_mask_test.npy', imgs_mask_test)
+        imgs_preds = model.predict(
+            imgs, verbose=1, batch_size=self._BATCH_SIZE)
+        if imgs_preds.shape[1] != self._OUTPUT_IMG_SIZE:
+            new_imgs_preds = np.empty((
+                imgs_preds.shape[0], self._OUTPUT_IMG_SIZE,
+                self._OUTPUT_IMG_SIZE, 3))
+            for i in range(imgs_preds.shape[0]):
+                new_imgs_preds[i] = resize(
+                    imgs_preds[i], (
+                        self._OUTPUT_IMG_SIZE, self._OUTPUT_IMG_SIZE, 3),
+                    preserve_range=False, mode='constant')
+        np.save('imgs_mask_test.npy', imgs_preds)
 
         self.notice('Saving predicted masks to files...')
         pred_dir = 'preds'
         if not os.path.exists(pred_dir):
             os.mkdir(pred_dir)
-        for image, id in zip(imgs_mask_test, ids_test):
+        for image, id in zip(imgs_preds, ids):
             image = (image[:, :, 0] * 255.).astype(np.uint8)
             zid = str(id).zfill(5)
             pred_path = os.path.join(pred_dir, zid + '-pred.png')
