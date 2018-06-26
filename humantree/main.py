@@ -69,4 +69,4 @@ def main():
         ht.train()
 
     if 'predict' in args.tasks:
-        ht.predict(limit=args.size, kind='all')
+        ht.predict(limit=args.size, kind='test')
