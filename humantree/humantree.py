@@ -49,7 +49,7 @@ class HumanTree(object):
     _UNET_N = 256
     _UNET_LEVELS = 4
     _BATCH_SIZE = 8
-    _TRAIN_EPOCHS = 1
+    _TRAIN_EPOCHS = 20
 
     # Property metric variables.
     _DEFAULT_SQFT = 1000.0
@@ -640,7 +640,7 @@ class HumanTree(object):
 
         model.summary()
 
-        model.compile(optimizer=Adam(lr=1e-5, amsgrad=True),
+        model.compile(optimizer=Adam(lr=1e-5),
                       loss='binary_crossentropy',
                       metrics=['binary_crossentropy', 'acc'])
 
@@ -740,12 +740,13 @@ class HumanTree(object):
         if imgs_preds.shape[1] != self._OUTPUT_IMG_SIZE:
             new_imgs_preds = np.empty((
                 imgs_preds.shape[0], self._OUTPUT_IMG_SIZE,
-                self._OUTPUT_IMG_SIZE, 3))
+                self._OUTPUT_IMG_SIZE, 1))
             for i in range(imgs_preds.shape[0]):
                 new_imgs_preds[i] = resize(
                     imgs_preds[i], (
-                        self._OUTPUT_IMG_SIZE, self._OUTPUT_IMG_SIZE, 3),
+                        self._OUTPUT_IMG_SIZE, self._OUTPUT_IMG_SIZE, 1),
                     preserve_range=False, mode='constant')
+            imgs_preds = new_imgs_preds
         np.save('imgs_mask_test.npy', imgs_preds)
 
         self.notice('Saving predicted masks to files...')
