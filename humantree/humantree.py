@@ -584,12 +584,12 @@ class HumanTree(object):
         pids = []
         for i in tqdm(indices, desc='Reading images into arrays'):
             image = misc.imread(parcel_paths[i])[:, :, :3]
-            image = resize(
-                image, (self._UNET_N, self._UNET_N, 3)).astype(np.uint8)
+            image = resize(image, (self._UNET_N, self._UNET_N, 3),
+                           mode='constant')
             images.append(image)
             mask = misc.imread(mask_paths[i])[:, :, [0]]
-            mask = resize(
-                mask, (self._UNET_N, self._UNET_N, 1)).astype(np.uint8)
+            mask = resize(mask, (self._UNET_N, self._UNET_N, 1),
+                          mode='constant')
             masks.append(mask)
             pids.append(int(parcel_paths[i].split('/')[-1].split('.')[0]))
 
