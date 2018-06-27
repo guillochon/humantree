@@ -2,11 +2,9 @@
 import json
 import os
 import pprint
-from collections import OrderedDict
 from glob import glob
 
 import numpy as np
-import time
 import requests
 from scipy import misc
 from skimage.io import imsave
