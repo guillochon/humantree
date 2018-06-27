@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block header %}
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.6"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.7"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
 <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key={{ places_api_key }}&libraries=places"></script>
 <script src="{{ url_for('static', filename='pureknob.js') }}"></script>
@@ -31,14 +31,14 @@
   	<div class="cssload-cube cssload-c4"></div>
   	<div class="cssload-cube cssload-c3"></div>
   </div>
-  Analyzing...
+  Analyzing...<br>(will take ~10 seconds)
 </div>
 <div class="imwrap" id="imwrap" style="display: none;">
   <div class="imagemask">
     <img class="validate-image" id="satellite"><img class="validate-mask" id="predict">
   </div>
 </div>
-<div id="metrizer" class="cssload-container" style="display: none">
+<div id="metrizer" class="cssmetrizer-container" style="display: none">
   <div id="spinningSquaresG">
   	<div id="spinningSquaresG_1" class="spinningSquaresG"></div>
   	<div id="spinningSquaresG_2" class="spinningSquaresG"></div>
@@ -51,5 +51,6 @@
   </div>
   Computing metrics...
 </div>
-<div id="metrics" class="metrics"><div>
+<div id="metrics" class="metrics" style="display: none"></div>
+<div class="notes-container"><div class="notes">Note: This page is powered by <a href="https://js.tensorflow.org/">Tensorflow.js</a>, which works best in Chrome/Firefox on a computer with a dedicated GPU.</div></div>
 {% endblock %}

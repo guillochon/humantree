@@ -318,9 +318,20 @@ input[type="checkbox"].switch_1{
   font-family: Georgia;
   font-style: italic;
   padding-top: 10px;
+  padding-bottom: 15px;
 }
 
 .cssload-container {
+  margin: 0 auto;
+  text-align: center;
+  color: rgb(0, 138, 16);
+  font-weight: bold;
+  font-style: italic;
+  font-family: Georgia;
+  padding-bottom: 15px;
+}
+
+.cssmetrizer-container {
   width: 150px;
   margin: 0 auto;
   text-align: center;
@@ -328,6 +339,7 @@ input[type="checkbox"].switch_1{
   font-weight: bold;
   font-style: italic;
   font-family: Georgia;
+  padding-bottom: 15px;
 }
 
 .cssload-thecube {
@@ -828,4 +840,18 @@ input[type="checkbox"].switch_1{
 
 .shade-fraction {
   font-size: 16pt;
+}
+
+.notes-container {
+  text-align: center;
+  width: 100%;
+}
+
+.notes {
+  color: #bbb;
+  font-style: italic;
+  text-align: center;
+  font-size: 10pt;
+  width: 400px;
+  margin: 0 auto;
 }
