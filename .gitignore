@@ -113,7 +113,7 @@ venv.bak/
 .DS_Store
 prediction/
 unet_trained/
-assets/
+assets*/
 queries/
 logs*/
 parcels/

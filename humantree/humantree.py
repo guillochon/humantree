@@ -13,8 +13,6 @@ from skimage.io import imsave
 from skimage.transform import resize
 from tqdm import tqdm
 
-from utils import open_atomic
-
 pp = pprint.PrettyPrinter(indent=4)
 
 
@@ -119,14 +117,6 @@ class HumanTree(object):
         with open(os.path.join(self._dir_name, '..', 'zillow.key'), 'r') as f:
             self._zillow_key = f.readline().strip()
         self._zillow_client = zillow.ValuationApi()
-
-        self._zillow_cache = OrderedDict()
-        self._zillow_path = os.path.join(
-            self._dir_name, '..', 'zillow.json')
-        if os.path.exists(self._zillow_path):
-            with open(self._zillow_path, 'r') as f:
-                self._zillow_cache = json.load(
-                    f, object_pairs_hook=OrderedDict)
 
         self._cropsize = self._INPUT_IMG_SIZE - 2 * self._CROPPIX
 
@@ -469,27 +459,9 @@ class HumanTree(object):
     def get_zillow(self, address):
         """Get deep search results for a property."""
         zadd = address.replace(', USA', '')
-        ladd = zadd.lower()
-
-        ct = time.time()
-        zdt = 86400
-
-        if ladd not in self._zillow_cache or (
-                ct - self._zillow_cache[ladd][0]) > zdt:
-            zzip = self.get_zip(zadd)
-            zdsr = self._zillow_client.GetDeepSearchResults(
-                self._zillow_key, zadd, zzip, True)
-
-            self._zillow_cache[ladd] = [ct, zdsr]
-            self.write_zillow_cache()
-        else:
-            return self._zillow_cache[ladd][1]
-
-        return zdsr
-
-    def write_zillow_cache(self):
-        with open_atomic(self._zillow_path, 'w') as f:
-            json.dump(self._zillow_cache, f)
+        zzip = self.get_zip(zadd)
+        return self._zillow_client.GetDeepSearchResults(
+            self._zillow_key, zadd, zzip, True)
 
     def get_sqft(self, zill, lot=False):
         """Get square feet from a zillow object."""
