@@ -236,6 +236,7 @@ function handleProcess(response) {
       img = predict(json, radius);
       document.getElementById('analyzer').style.display = "none"
       document.getElementById('imwrap').style.display = "block"
+	  document.getElementById('maskswitch').style.display = "block"
     },
     complete: function() {
       document.getElementById('metrizer').style.display = "block"
@@ -265,6 +266,7 @@ $(function() {
     document.getElementById('invalid-address').style.display = 'none'
     document.getElementById('imwrap').style.display = "none"
     document.getElementById('metrics').style.display = "none"
+	document.getElementById('maskswitch').style.display = "none"
     document.getElementById('analyzer').style.display = "block"
 
     var url = e.target.action; // get the target
@@ -276,6 +278,15 @@ $(function() {
 function initialize() {
   var input = document.getElementById('address');
   new google.maps.places.Autocomplete(input);
+}
+
+function toggleMask() {
+  var checked = document.getElementById('maskcheck').checked;
+  if (checked) {
+    document.getElementById('predict').style.opacity = 1.0;
+  } else {
+    document.getElementById('predict').style.opacity = 0.0;
+  }
 }
 
 google.maps.event.addDomListener(window, 'load', initialize);
