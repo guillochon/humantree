@@ -7,7 +7,7 @@ import numpy as np
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from humantree import HumanTree
-from humantree.utils import open_atomic
+from utils import open_atomic
 
 app = Flask(__name__)
 

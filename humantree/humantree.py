@@ -13,7 +13,7 @@ from skimage.io import imsave
 from skimage.transform import resize
 from tqdm import tqdm
 
-from humantree.utils import open_atomic
+from utils import open_atomic
 
 pp = pprint.PrettyPrinter(indent=4)
 
