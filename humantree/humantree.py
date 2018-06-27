@@ -53,6 +53,7 @@ class HumanTree(object):
     # Property metric variables.
     _DEFAULT_SQFT = 1000.0
     _DEFAULT_LOT_SQFT = 3000.0
+    _ONE_TREE_SQFT = 500.0
     _REGIONS = {
         'ENC': ['IL', 'IN', 'MI', 'OH', 'WI'],
         'WNC': ['IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD'],

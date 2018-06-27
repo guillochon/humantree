@@ -200,15 +200,20 @@ def metrics():
         value_increase = 0.0
         max_value_increase = 0.0
         one_tree_value = 0.0
-        one_tree_frac = 0.05
         sqft = ht._DEFAULT_SQFT
+        lsqft = ht._DEFAULT_LOT_SQFT
+        one_tree_frac = ht._ONE_TREE_SQFT / lsqft
 
         if zill is not None:
             sqft = ht.get_sqft(zill)
             if sqft is None:
                 sqft = ht._DEFAULT_SQFT
 
-            one_tree_frac = 0.05
+            lsqft = ht.get_sqft(zill, lot=True)
+            if sqft is None:
+                sqft = ht._DEFAULT_SQFT
+
+            one_tree_frac = ht._ONE_TREE_SQFT / lsqft
 
             if zill.zestimate.amount is not None:
                 house_value = float(zill.zestimate.amount)
