@@ -1,8 +1,11 @@
 import os
 import tempfile
+from contextlib import contextmanager
 
 # Below from
 # http://stackoverflow.com/questions/2333872/atomic-writing-to-file-with-python
+
+
 @contextmanager
 def temp_atomic(suffix='', dir=None):
     """Context for temporary file.

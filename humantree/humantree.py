@@ -2,13 +2,13 @@
 import json
 import os
 import pprint
-from glob import glob
 from collections import OrderedDict
+from glob import glob
 
 import numpy as np
+import time
 import requests
 from scipy import misc
-# from pypolyline.util import encode_coordinates
 from skimage.io import imsave
 from skimage.transform import resize
 from tqdm import tqdm
@@ -125,7 +125,8 @@ class HumanTree(object):
             self._dir_name, '..', 'zillow.json')
         if os.path.exists(self._zillow_path):
             with open(self._zillow_path, 'r') as f:
-                self._zillow_cache = json.load(f, object_pairs_hook=OrderedDict)
+                self._zillow_cache = json.load(
+                    f, object_pairs_hook=OrderedDict)
 
         self._cropsize = self._INPUT_IMG_SIZE - 2 * self._CROPPIX
 
@@ -470,18 +471,19 @@ class HumanTree(object):
         zadd = address.replace(', USA', '')
         ladd = zadd.lower()
 
-        ct = time.time();
-        zdt = 86400;
+        ct = time.time()
+        zdt = 86400
 
-        if ladd not in self._zillow_cache or (ct - self._zillow_cache[ladd][0]) > zdt:
+        if ladd not in self._zillow_cache or (
+                ct - self._zillow_cache[ladd][0]) > zdt:
+            zzip = self.get_zip(zadd)
+            zdsr = self._zillow_client.GetDeepSearchResults(
+                self._zillow_key, zadd, zzip, True)
+
             self._zillow_cache[ladd] = [ct, zdsr]
             self.write_zillow_cache()
         else:
             return self._zillow_cache[ladd][1]
-
-        zzip = self.get_zip(zadd)
-        zdsr = self._zillow_client.GetDeepSearchResults(
-            self._zillow_key, zadd, zzip, True)
 
         return zdsr
 
