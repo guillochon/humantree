@@ -3,6 +3,7 @@
 import os
 
 from . import humantree  # noqa: F401
+from . import utils  # noqa: F401
 
 dir_name = os.path.dirname(os.path.realpath(__file__))
 

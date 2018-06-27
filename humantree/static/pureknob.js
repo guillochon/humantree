@@ -263,7 +263,11 @@ function PureKnob() {
 					 */
 					if (excessLabel != '') {
 						var targX = centerX + (1.0 + 1.2 * trackWidth) * radius * Math.cos(angleVal + excessVal);
-						var targY = centerY + (1.0 + 1.2 * trackWidth) * radius * Math.sin(angleVal + excessVal);
+						var atargX = Math.max(Math.min(targX,
+							centerX + radius + trackWidth), centerX - radius - trackWidth);
+						var xEx = Math.abs(atargX - targX);
+						targX = atargX;
+						var targY = centerY + (1.0 + 1.2 * trackWidth) * radius * Math.sin(angleVal + excessVal) - 1.5 * xEx;
 						ctx.font = fontSizeString + 'px georgia';
 						ctx.fillStyle = colorFilling;
 						ctx.textAlign = 'center';

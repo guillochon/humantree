@@ -7,6 +7,7 @@ import numpy as np
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from humantree import HumanTree
+from humantree.utils import open_atomic
 
 app = Flask(__name__)
 
@@ -77,7 +78,7 @@ def help():
                 votes[id]['okay'] += 1
             else:
                 votes[id]['bad'] += 1
-            with open(votes_path, 'w') as f:
+            with open_atomic(votes_path, 'w') as f:
                 json.dump(votes, f)
             iids = request.form.get('iids', '').split(',')
 
