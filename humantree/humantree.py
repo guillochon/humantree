@@ -45,7 +45,7 @@ class HumanTree(object):
     _SMOOTH = 1.0
 
     # UNet variables.
-    _UNET_N = 256
+    _UNET_N = 512
     _UNET_LEVELS = 4
     _BATCH_SIZE = 8
     _TRAIN_EPOCHS = 20
@@ -285,7 +285,8 @@ class HumanTree(object):
             except Exception as ee:
                 print(ee)
 
-        merged_polys = cascaded_union(ipolys)
+        merged_polys = ipolys
+        # merged_polys = cascaded_union(ipolys)
 
         if 'Multi' not in str(type(merged_polys)) and not isinstance(
                 merged_polys, list):
@@ -395,13 +396,17 @@ class HumanTree(object):
 
             fname = str(pi).zfill(5)
 
-            fpaths = [os.path.join(
-                self._dir_name, '..', 'parcels', fname + '-' + suffix +
-                '.png') for suffix in ['mask', 'outline']]
-            for fpath in fpaths:
-                if not os.path.exists(fpath):
-                    self.make_mask_from_polys(
-                        self._canopy_polygons, fpath, bound_poly, bp)
+            mask_path = os.path.join(
+                self._dir_name, '..', 'parcels', fname + '-mask.png')
+            outline_path = os.path.join(
+                self._dir_name, '..', 'parcels', fname + '-outline.png')
+
+            if not os.path.exists(mask_path):
+                self.make_mask_from_polys(
+                    self._canopy_polygons, mask_path, bound_poly, bp)
+
+            if not os.path.exists(outline_path):
+                self.make_outline_from_mask(mask_path, outline_path)
 
             self.get_image(bound_poly, mlat, mlon, fname=fname)
 
