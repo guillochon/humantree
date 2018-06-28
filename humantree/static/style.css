@@ -855,3 +855,10 @@ input[type="checkbox"].switch_1{
   width: 400px;
   margin: 0 auto;
 }
+
+.google-logo {
+  width: 30px;
+  left: 5px;
+  bottom: 10px;
+  position: absolute;
+}
