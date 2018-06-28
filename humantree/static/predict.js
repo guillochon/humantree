@@ -5,12 +5,10 @@ var mets = undefined;
 var address = undefined;
 
 async function loadModel() {
-  // Load model.
-  // document.getElementById('loader').style.display = "block"
   console.log('Loading model...');
   this.model = await tf.loadModel('assets/model.json');
   console.log('Model loaded.');
-  document.getElementById('loader').style.display = "none";
+  document.getElementById('loader').style.display = 'none';
   document.getElementById('btn').disabled = false;
 }
 
@@ -87,7 +85,7 @@ function drawImage(image, propRadius) {
   cimage.classList.add('validate-mask');
   var el = document.getElementById('predict');
   el.parentNode.replaceChild(cimage, el);
-  var pred = $("#predict");
+  var pred = $('#predict');
   pred.width(400);
   pred.height(400);
 }
@@ -141,7 +139,7 @@ function metrics(image, head) {
       valueKnob.setProperty('showRange', true);
 
       mets = data;
-      document.getElementById('metrizer').style.display = "none"
+      document.getElementById('metrizer').style.display = 'none'
       var met_str = '';
       met_str += '<span class="shade-fraction"><strong>' + String((
         mets['fraction'] * 100).toFixed(1)) + '%</strong> of property shaded.</span><br>'
@@ -150,14 +148,14 @@ function metrics(image, head) {
       if (mets['cost'] > 0.0) {
         met_str += 'Heating & cooling costs: $' + String((
           mets['cost']).toFixed(0)).replace(
-          /\B(?=(\d{3})+(?!\d))/g, ",") + ' per year.<br>'
+          /\B(?=(\d{3})+(?!\d))/g, ',') + ' per year.<br>'
       }
       if (mets['savings'] > 0.0) {
         met_str += 'Savings from current trees: $' + String((
           mets['savings']).toFixed(0)) + ' per year.<br>'
         met_str += 'Savings by adding a large tree: <strong>$' + String((
           mets['one_tree_savings']).toFixed(1)).replace(
-          /\B(?=(\d{3})+(?!\d))/g, ",") + ' per year</strong>.<br clear=all><br>'
+          /\B(?=(\d{3})+(?!\d))/g, ',') + ' per year</strong>.<br clear=all><br>'
         savingsKnob.setProperty('valMax', parseFloat(mets['max_savings'].toFixed(0)));
         savingsKnob.setValue(parseFloat(mets['savings'].toFixed(0)));
         savingsKnob.setProperty('excess', mets['one_tree_savings']);
@@ -171,7 +169,7 @@ function metrics(image, head) {
         mets['noise_abatement']).toFixed(1)) + ' dB.<br>'
       met_str += 'Additional abatement by adding a large tree: <strong>' + String((
         mets['one_tree_noise']).toFixed(1)).replace(
-        /\B(?=(\d{3})+(?!\d))/g, ",") + ' dB</strong>.<br clear=all><br>'
+        /\B(?=(\d{3})+(?!\d))/g, ',') + ' dB</strong>.<br clear=all><br>'
       met_str += '</div>'
       noiseKnob.setProperty('valMax', parseFloat(mets['max_noise_abatement'].toFixed(0)));
       noiseKnob.setValue(parseFloat(mets['noise_abatement'].toFixed(0)));
@@ -187,10 +185,10 @@ function metrics(image, head) {
           ' (via <a href="https://www.zillow.com"><img width=50px src="static/zillow.gif"></a>).<br>';
         met_str += 'Value increase from present trees: $' + String((
           mets['value_increase']).toFixed(0)).replace(
-          /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
+          /\B(?=(\d{3})+(?!\d))/g, ',') + '.<br>'
         met_str += 'Value increase by adding a large tree: <strong>$' + String((
           mets['one_tree_value']).toFixed(0)).replace(
-          /\B(?=(\d{3})+(?!\d))/g, ",") + '</strong>.'
+          /\B(?=(\d{3})+(?!\d))/g, ',') + '</strong>.'
         met_str += '</div>'
         valueKnob.setProperty('valMax',
           parseFloat((mets['max_value_increase'] / 1000.0).toFixed(0)));
@@ -207,7 +205,7 @@ function metrics(image, head) {
       if (mets['house_value'] > 0.0) {
         document.getElementById('value_knob').appendChild(valueKnob.node());
       }
-      document.getElementById('metrics').style.display = "block"
+      document.getElementById('metrics').style.display = 'block'
     }
   })
 }
@@ -217,41 +215,34 @@ function handleProcess(response) {
   if (Object.keys(response).length === 0) {
     document.getElementById('invalid-address').style.display = 'block';
     document.getElementById('btn').disabled = false;
-    document.getElementById('analyzer').style.display = "none";
-    document.getElementById('metrizer').style.display = "none";
+    document.getElementById('analyzer').style.display = 'none';
+    document.getElementById('metrizer').style.display = 'none';
     return;
   }
 
   var path = 'path' in response ? response['path'] : '';
   var radius = 'radius' in response ? response['radius'] : 0.0;
 
-  var sat = $("#satellite");
-  sat.attr("src", "queries/" + path);
+  var sat = $('#satellite');
+  sat.attr('src', 'queries/' + path);
   // sat.width(width / 2);
   // sat.height(height / 2);
   var head = path.split('.')[0];
   $.ajax({
-    url: "queries/" + path.replace('.png', '.json'),
+    url: 'queries/' + path.replace('.png', '.json'),
     dataType: 'json',
     success: function(json) {
       img = predict(json, radius);
-      document.getElementById('analyzer').style.display = "none"
-      document.getElementById('imwrap').style.display = "block"
-      document.getElementById('maskswitch').style.display = "block"
+      document.getElementById('analyzer').style.display = 'none'
+      document.getElementById('imwrap').style.display = 'block'
+      document.getElementById('maskswitch').style.display = 'block'
     },
     complete: function() {
-      document.getElementById('metrizer').style.display = "block"
+      document.getElementById('metrizer').style.display = 'block'
       document.getElementById('btn').disabled = false;
       metrics(img, head);
     }
   });
-  // img = $.getJSON("queries/" + path.replace(
-  //   '.png', '.json'), function(json) {
-  //   img = predict(json);
-  //   document.getElementById('analyzer').style.display = "none"
-  //   document.getElementById('imwrap').style.display = "block"
-  //   return img;
-  // });
 }
 
 $(function() {
@@ -263,15 +254,15 @@ $(function() {
       return;
     }
 
-    document.getElementById('btn').disabled = true;
-    document.getElementById('invalid-address').style.display = 'none'
-    document.getElementById('imwrap').style.display = "none"
-    document.getElementById('metrics').style.display = "none"
-    document.getElementById('maskswitch').style.display = "none"
-    document.getElementById('analyzer').style.display = "block"
+    document.getElementById('btn').disabled = true;;
+    document.getElementById('invalid-address').style.display = 'none';
+    document.getElementById('imwrap').style.display = 'none';
+    document.getElementById('metrics').style.display = 'none';
+    document.getElementById('maskswitch').style.display = 'none';
+    document.getElementById('analyzer').style.display = 'block';
 
     document.getElementById('gmap-link').href = (
-      "https://maps.google.com/?q=" + encodeURI(address);)
+      'https://maps.google.com/?q=' + encodeURI(address));
 
     var url = e.target.action; // get the target
     var formData = $(this).serialize(); // get form data
