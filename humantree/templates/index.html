@@ -35,7 +35,7 @@
 </div>
 <div class="imwrap" id="imwrap" style="display: none;">
   <div class="imagemask">
-    <img class="validate-image" id="satellite"><img class="validate-mask" id="predict"><a href="https://maps.google.com" id="gmap-link" target="_blank"><img class="google-logo" src={{ url_for('static', filename='google.png') }}></a>
+    <img class="validate-image" id="satellite"><img class="validate-mask" id="predict"><a href="https://maps.google.com" id="gmap-link" target="_blank"><img class="google-logo" src="{{ url_for('static', filename='google.png') }}"></a>
   </div>
 </div>
 <div class="showmask" id="maskswitch" style="display: none">
@@ -57,5 +57,5 @@
   Computing metrics...
 </div>
 <div id="metrics" class="metrics" style="display: none"></div>
-<div class="notes-container"><div class="notes">Note: This page is powered by <a href="https://js.tensorflow.org/">Tensorflow.js</a>, which works best in Chrome/Firefox on a computer with a dedicated GPU.</div></div>
+<div class="notes-container"><div class="notes">Note: This page is powered by <a href="https://js.tensorflow.org/" target="_blank"><img width=50px src="{{ url_for('static', filename='tensorflow.svg') }}"></a>, which works best in Chrome/Firefox on a computer with a dedicated GPU.</div></div>
 {% endblock %}
