@@ -183,7 +183,7 @@ function metrics(image, head) {
         met_str += '<div class="stat-summary">'
         met_str += 'Estimated house value: $' + String((
           mets['house_value']).toFixed(0)).replace(
-          /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
+          /\B(?=(\d{3})+(?!\d))/g, ",") + '(via <img width=100px src="{{ url_for('static', filename='style.css') }}").<br>'
         met_str += 'Value increase from present trees: $' + String((
           mets['value_increase']).toFixed(0)).replace(
           /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
