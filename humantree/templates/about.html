@@ -1,8 +1,13 @@
 {% extends 'base.html' %}
 {% block content %}
-HumanTree was created by <a href="https://astrocrash.net">James Guillochon</a>. This project came about during his time as a fellow in Insight's Data Science Program in Boston (Summer 2018).
+HumanTree was created by <a href="https://astrocrash.net">James Guillochon</a>. This project came about during his time as a fellow in <a href="https://www.insightdatascience.com/fellows">Insight's Data Science Program</a> in Boston (Summer 2018).<br><br>
 
-All code for this project, including the web server delivering this page, is available in this <a href="https://github.com/guillochon/humantree">GitHub repository</a>.
+All code for this project, including the web server delivering this page, is available in this <a href="https://github.com/guillochon/humantree">GitHub repository</a>.<br><br>
 
-HumanTree itself does not retain addresses entered into the search box on the main page; our predictions are only stored in anonymized form for quality assurance purposes. The services we use to power this page however (Google, Zillow, etc.) may of course be collecting your data.
+HumanTree itself does not retain addresses entered into the search box on the main page; our predictions are only stored in anonymized form for quality assurance purposes. The services we use to power this page however (Google, Zillow, etc.) may of course be collecting your data.<br><br>
+
+<em>About the metrics</em><br>
+The metrics presented for each property are constructed heuristically based upon the fraction of a property coverged by the tree canopy.<br><br>
+
+For heating/cooling costs, we use the regional heating/cooling degree days from the EIA and assume that 2/3rds of all days of the year will require either heating or cooling. A full canopy of trees is then assumed to affect a 5&#176; change on these days.<br><br>
 {% endblock %}

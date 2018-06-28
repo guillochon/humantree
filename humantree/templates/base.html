@@ -3,6 +3,7 @@
   <head>
     {% block header %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>HumanTree.org: Assess the Impact of Trees on your Property</title>
   </head>
   <body {% if request.endpoint == 'help' %} onload="insertSrcs();" {% endif %}>
     <div class="page">
