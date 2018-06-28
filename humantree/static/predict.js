@@ -182,8 +182,8 @@ function metrics(image, head) {
         met_str += '<div class="dial-container" id="value_knob" width=150 height=100></div>'
         met_str += '<div class="stat-summary">'
         met_str += 'Estimated house value: $' + String((
-          mets['house_value']).toFixed(0)).replace(
-          /\B(?=(\d{3})+(?!\d))/g, ",") +
+            mets['house_value']).toFixed(0)).replace(
+            /\B(?=(\d{3})+(?!\d))/g, ",") +
           ' (via <a href="https://www.zillow.com"><img width=50px src="static/zillow.gif"></a>).<br>';
         met_str += 'Value increase from present trees: $' + String((
           mets['value_increase']).toFixed(0)).replace(
@@ -237,7 +237,7 @@ function handleProcess(response) {
       img = predict(json, radius);
       document.getElementById('analyzer').style.display = "none"
       document.getElementById('imwrap').style.display = "block"
-	  document.getElementById('maskswitch').style.display = "block"
+      document.getElementById('maskswitch').style.display = "block"
     },
     complete: function() {
       document.getElementById('metrizer').style.display = "block"
@@ -259,16 +259,19 @@ $(function() {
     e.preventDefault(); // prevent the form from 'submitting'
     address = document.getElementById('address').value;
     if ($.trim(address) == '') {
-        document.getElementById('invalid-address').style.display = 'block';
-        return;
+      document.getElementById('invalid-address').style.display = 'block';
+      return;
     }
 
     document.getElementById('btn').disabled = true;
     document.getElementById('invalid-address').style.display = 'none'
     document.getElementById('imwrap').style.display = "none"
     document.getElementById('metrics').style.display = "none"
-	document.getElementById('maskswitch').style.display = "none"
+    document.getElementById('maskswitch').style.display = "none"
     document.getElementById('analyzer').style.display = "block"
+
+    document.getElementById('gmap-link').href = (
+      "https://maps.google.com/?q=" + encodeURI(address);)
 
     var url = e.target.action; // get the target
     var formData = $(this).serialize(); // get form data
