@@ -864,13 +864,13 @@ input[type="checkbox"].switch_1:checked:after {
 }
 
 .tensorflow-logo img {
-  width: 70px;
-  vertical-align: top;
+  width: 80px;
+  margin-bottom: -2px;
 }
 
 .tensorflow-logo a {
-  color: inherit;
+  color: #aaa;
   text-decoration: none;
   font-style: normal;
-  font-size: 8pt;
+  font-size: 8.5pt;
 }
