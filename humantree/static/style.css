@@ -863,12 +863,12 @@ input[type="checkbox"].switch_1:checked:after {
   position: absolute;
 }
 
-img.tensorflow-logo {
+.tensorflow-logo img {
   width: 70px;
   vertical-align: top;
 }
 
-a.tensorflow-logo {
+.tensorflow-logo a {
   color: inherit;
   text-decoration: none;
   font-style: normal;
