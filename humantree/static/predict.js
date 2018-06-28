@@ -184,7 +184,7 @@ function metrics(image, head) {
         met_str += 'Estimated house value: $' + String((
           mets['house_value']).toFixed(0)).replace(
           /\B(?=(\d{3})+(?!\d))/g, ",") +
-          '(via <img width=50px src="static/zillow.gif">).<br>';
+          ' (via <a href="https://www.zillow.com"><img width=50px src="static/zillow.gif"></a>).<br>';
         met_str += 'Value increase from present trees: $' + String((
           mets['value_increase']).toFixed(0)).replace(
           /\B(?=(\d{3})+(?!\d))/g, ",") + '.<br>'
