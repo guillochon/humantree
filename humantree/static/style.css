@@ -861,6 +861,22 @@ input[type="checkbox"].switch_1:checked:after {
   margin: 0 auto;
 }
 
+.safari-container {
+  display: none;
+  text-align: center;
+  width: 100%;
+}
+
+.safari {
+  color: orangered;
+  font-style: bold;
+  text-align: center;
+  font-size: 14pt;
+  max-width: 90%;
+  margin: 0 auto;
+  padding-bottom: 10px;
+}
+
 .google-logo {
   width: 30px;
   left: 5px;

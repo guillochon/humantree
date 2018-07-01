@@ -12,6 +12,15 @@ async function loadModel() {
   document.getElementById('btn').disabled = false;
 }
 
+function checkClient() {
+  sysinfo = parser.getResult();
+  console.log(sysinfo);
+  
+  if (sysinfo['browser']['name'].toLowerCase() == 'safari') {
+    document.getElementById('safari-warning').style.display = 'block';
+  }
+}
+
 function predict(imageData, propRadius) {
 
   console.log(tf.memory().numBytes);
@@ -285,5 +294,6 @@ function toggleMask() {
 }
 
 google.maps.event.addDomListener(window, 'load', initialize);
+var parser = new UAParser();
 
 loadModel();
