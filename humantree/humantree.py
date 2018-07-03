@@ -147,6 +147,8 @@ class HumanTree(object):
                 list(x.geoms) if 'multi' in str(type(
                     x)).lower() else [x] for x in cps] for a in b])
 
+        self._model = None
+
     def prt(self, txt):
         """Print using the right printer function."""
         if self._p is None:
@@ -238,7 +240,7 @@ class HumanTree(object):
 
         return fpath
 
-    def get_image_from_address(self, address):
+    def get_image_from_address(self, address, fname=None):
         """Get an image from an address."""
         if not address:
             raise ValueError('Invalid address `{}`!'.format(address))
@@ -250,7 +252,8 @@ class HumanTree(object):
             poly = pt.buffer(self._POINT_BUFF)
         bound_poly, mlat, mlon, __ = self.get_bound_poly(poly)
         fpath = self.get_image(
-            bound_poly, mlat, mlon, address=address, target_dir='queries')
+            bound_poly, mlat, mlon, address=address, target_dir='queries',
+            fname=fname)
         pic = misc.imread(fpath)
         json_path = fpath.replace('.png', '.json')
         if not os.path.exists(json_path):
@@ -702,25 +705,61 @@ class HumanTree(object):
                 'std': float(self._imgs_std)}, f)
 
         self.notice('Creating and compiling model...')
-        model = self.get_unet()
+        self._model = self.get_unet()
         model_checkpoint = ModelCheckpoint(
-            'weights.h5', monitor='val_loss', save_best_only=True)
+            os.path.join(self._dir_name, '..', 'weights.h5'),
+            monitor='val_loss', save_best_only=True)
 
         self.notice('Fitting model...')
 
         tbCallBack = TensorBoard(write_grads=True, batch_size=self._BATCH_SIZE)
 
-        model.fit(
+        self._model.fit(
             self._imgs_train, self._imgs_mask_train,
             batch_size=self._BATCH_SIZE, epochs=self._TRAIN_EPOCHS, verbose=1,
             shuffle=True, validation_split=0.2,
             # callbacks=[model_checkpoint])
             callbacks=[model_checkpoint, tbCallBack])
 
+    def shade_fraction_of_address(self, address):
+        fpath = self.predict_for_address(address)
+
+        image = misc.imread(fpath)
+
+        image[image < 255 / 2.0] = 1
+        image[image > 255 / 2.0] = 0
+
+        return np.sum(image) / (image.shape[0] * image.shape[1])
+
+    def predict_for_address(self, address, fname=None):
+        if not self._model:
+            self._model = self.get_unet()
+            self._model.load_weights(
+                os.path.join(self._dir_name, '..', 'weights.h5'))
+
+        fpath = self.get_image_from_address(address, fname=fname)
+
+        image = misc.imread(fpath)[:, :, :3]
+        image = image[np.newaxis, :, :, :].astype('float32')
+        image -= self._imgs_mean
+        image /= self._imgs_std
+
+        pred = self._model.predict(image)
+
+        pred_dir = 'preds'
+        if not os.path.exists(pred_dir):
+            os.mkdir(pred_dir)
+
+        image = (pred[0, :, :, 0] * 255.).astype(np.uint8)
+        pred_path = fpath.replace('.png', '-pred.png')
+        imsave(pred_path, image)
+
+        return pred_path
+
     def predict(self, kind='test', limit=-1):
         """Test trained UNet."""
         self.notice('Creating and compiling model...')
-        model = self.get_unet()
+        self._model = self.get_unet()
 
         if kind == 'test':
             fractions = (0.8, 1.0)
@@ -739,10 +778,11 @@ class HumanTree(object):
         imgs /= self._imgs_std
 
         self.notice('Loading saved weights...')
-        model.load_weights('weights.h5')
+        self._model.load_weights(
+            os.path.join(self._dir_name, '..', 'weights.h5'))
 
         self.notice('Predicting masks on test data...')
-        imgs_preds = model.predict(
+        imgs_preds = self._model.predict(
             imgs, verbose=1, batch_size=self._BATCH_SIZE)
         if imgs_preds.shape[1] != self._OUTPUT_IMG_SIZE:
             new_imgs_preds = np.empty((
