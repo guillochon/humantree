@@ -4,6 +4,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.11.7"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
 <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key={{ places_api_key }}&libraries=places"></script>
+<script src="https://cdn.jsdelivr.net/npm/ua-parser-js@0/dist/ua-parser.min.js"></script>
 <script src="{{ url_for('static', filename='pureknob.js') }}"></script>
 <script src="{{ url_for('static', filename='predict.js') }}"></script>
 {% endblock %}
@@ -57,5 +58,6 @@
   Computing metrics...
 </div>
 <div id="metrics" class="metrics" style="display: none"></div>
+<div id="safari-warning" class="safari-container"><div class="safari">Warning: Tensorflow.js currently does not support Safari, please access this page in either Firefox or Chrome.</div></div>
 <div class="notes-container"><div class="notes">Note: This page is powered by <span class="tensorflow-logo"><a href="https://js.tensorflow.org/" target="_blank"><img src="{{ url_for('static', filename='tensorflow.svg') }}">.js</a></span>, which works best in Chrome/Firefox on a computer with a dedicated GPU.</div></div>
 {% endblock %}

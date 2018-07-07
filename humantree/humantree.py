@@ -497,7 +497,7 @@ class HumanTree(object):
             sqft = None
         if sqft is None:
             sqft = self._DEFAULT_LOT_SQFT
-        return 0.3048 * np.sqrt(2.0 / np.pi * sqft)
+        return 0.4 * np.sqrt(2.0 / np.pi * sqft)
 
     def get_zill_radius(self, zill):
         """Get effective radius from a `Zillow` object."""
@@ -507,7 +507,7 @@ class HumanTree(object):
             sqft = None
         if sqft is None:
             sqft = self._DEFAULT_LOT_SQFT
-        return 0.3048 * np.sqrt(2.0 / np.pi * sqft)
+        return 0.4 * np.sqrt(2.0 / np.pi * sqft)
 
     def get_updated_prop_details(self, zpid):
         """Get extra details on properties provided by Zillow users."""

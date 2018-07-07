@@ -42,7 +42,7 @@ h2 {
 
 .page {
   margin: 2em auto;
-  max-width: 100%;
+  max-width: 90%;
   width: 35em;
   border: 5px solid #ccc;
   padding: 0.8em;
@@ -66,6 +66,7 @@ div.imagemask {
 img.validate-image {
   width: 400px;
   height: 400px;
+  max-width: 90%;
 }
 
 img.validate-mask {
@@ -74,6 +75,7 @@ img.validate-mask {
   left: 0;
   position: absolute;
   transition: opacity 0.5s ease-in-out;
+  max-width: 100%;
 }
 
 .entries {
@@ -126,6 +128,7 @@ img.validate-mask {
   font-family: Georgia;
   font-size: 1.3em;
   width: 450px;
+  max-width: 90%;
   text-align: center;
 }
 
@@ -854,7 +857,24 @@ input[type="checkbox"].switch_1:checked:after {
   text-align: center;
   font-size: 10pt;
   width: 400px;
+  max-width: 90%;
   margin: 0 auto;
+}
+
+.safari-container {
+  display: none;
+  text-align: center;
+  width: 100%;
+}
+
+.safari {
+  color: orangered;
+  font-style: bold;
+  text-align: center;
+  font-size: 14pt;
+  max-width: 90%;
+  margin: 0 auto;
+  padding-bottom: 10px;
 }
 
 .google-logo {
@@ -874,4 +894,10 @@ input[type="checkbox"].switch_1:checked:after {
   text-decoration: none;
   font-style: normal;
   font-size: 8.5pt;
+}
+
+.presentation {
+  width: 560px;
+  height: 350px;
+  max-width: 100%;
 }

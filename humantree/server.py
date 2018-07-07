@@ -210,8 +210,8 @@ def metrics():
                 sqft = ht._DEFAULT_SQFT
 
             lsqft = ht.get_sqft(zill, lot=True)
-            if sqft is None:
-                sqft = ht._DEFAULT_SQFT
+            if lsqft is None:
+                lsqft = ht._DEFAULT_LOT_SQFT
 
             one_tree_frac = ht._ONE_TREE_SQFT / lsqft
 
