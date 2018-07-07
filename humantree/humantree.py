@@ -185,7 +185,6 @@ class HumanTree(object):
         for polys in self._parcel_polygons:
             for poly in polys:
                 if poly.contains(pt):
-                    print('Success!')
                     result = poly
                     break
 
